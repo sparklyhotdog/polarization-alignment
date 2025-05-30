@@ -39,56 +39,72 @@ def compute_transformation(p_inverse, n_H, n_D, C_H, C_D):
 
 
 if __name__ == "__main__":
-    # Generate an arbitrary rotation matrix (3x3, not a Mueller matrix so that we can use the scipy rotation library)
-    T = r.as_matrix(r.from_euler("xyz", [2*np.pi*random.random(), 2*np.pi*random.random(), 2*np.pi*random.random()]))
-    N_H = random.randrange(500, 1500)
-    N_D = random.randrange(500, 1500)
+    count = 0
+    for i in range(100):
+        # Generate an arbitrary rotation matrix (3x3, not a Mueller matrix so that we can use the scipy rotation library)
+        T = r.as_matrix(r.from_euler("xyz", [2*np.pi*random.random(), 2*np.pi*random.random(), 2*np.pi*random.random()]))
+        N_H = random.randrange(500, 1500)
+        N_D = random.randrange(500, 1500)
 
-    # Pick n >= 3 rotations for the PA to emulate
-    # TODO: find a specific condition for this. not all sequences of rotations will work (something pseudomatrix exists blah blah)
-    R1 = r.as_matrix(r.from_rotvec([1, 0, 0]))
-    R2 = r.as_matrix(r.from_rotvec([0, 1, 0]))
-    R3 = r.as_matrix(r.from_rotvec([0, 0, 1]))
-    rotations = [R1, R2, R3]
-    n = len(rotations)
+        # Pick n >= 3 rotations for the PA to emulate
+        # TODO: find a specific condition for this. not all sequences of rotations will work (something pseudomatrix exists blah blah)
+        R1 = r.as_matrix(r.from_rotvec([1, 0, 0]))
+        R2 = r.as_matrix(r.from_rotvec([0, 1, 0]))
+        R3 = r.as_matrix(r.from_rotvec([0, 0, 1]))
+        rotations = [R1, R2, R3]
+        n = len(rotations)
 
-    C_H, C_D = calculate_counts(rotations, N_H, N_D, T)
-    P = np.asmatrix(np.empty((n, 3)))
-    # Construct our P matrix for all rotations. The ith row of P contains the first row of rotation matrix i.
-    # We only care about the first row of each rotation, since we are multiplying it by the H polarizer matrix.
-    for i in range(n):
-        P[i] = rotations[i][0]
+        C_H, C_D = calculate_counts(rotations, N_H, N_D, T)
+        P = np.asmatrix(np.empty((n, 3)))
+        # Construct our P matrix for all rotations. The ith row of P contains the first row of rotation matrix i.
+        # We only care about the first row of each rotation, since we are multiplying it by the H polarizer matrix.
+        for i in range(n):
+            P[i] = rotations[i][0]
 
-    # Setup done -----------------------------------------------------------------------------------------------------
-    # We have an unknown rotation T, and measurements C_H and C_D corresponding to the chosen rotations
-    p_inverse = np.linalg.pinv(P)
+        # Setup done ---------------------------------------------------------------------------------------------------
+        # We have an unknown rotation T, and measurements C_H and C_D corresponding to the chosen rotations
+        p_inverse = np.linalg.pinv(P)
 
-    # Solve for N_H and N_D. We can use the fact that the columns of T are unit vectors, and solve a quadratic for both.
-    Pc_H = p_inverse * C_H
-    Pc_D = p_inverse * C_D
-    A1 = p_inverse * np.ones((n, 1))
+        # Solve for N_H and N_D. We know that the columns of T are unit vectors, and solve a quadratic for both.
+        Pc_H = p_inverse * C_H
+        Pc_D = p_inverse * C_D
+        A1 = p_inverse * np.ones((n, 1))
 
-    a = np.sum(np.square(A1)) - 1
-    b_H = -4 * np.sum(np.multiply(Pc_H, A1))
-    b_D = -4 * np.sum(np.multiply(Pc_D, A1))
-    c_H = 4 * np.sum(np.square(Pc_H))
-    c_D = 4 * np.sum(np.square(Pc_D))
+        a = np.sum(np.square(A1)) - 1
+        b_H = -4 * np.sum(np.multiply(Pc_H, A1))
+        b_D = -4 * np.sum(np.multiply(Pc_D, A1))
+        c_H = 4 * np.sum(np.square(Pc_H))
+        c_D = 4 * np.sum(np.square(Pc_D))
 
-    roots_H = np.roots([a, b_H, c_H])
-    roots_D = np.roots([a, b_D, c_D])
+        roots_H = np.roots([a, b_H, c_H])
+        roots_D = np.roots([a, b_D, c_D])
 
-    n_H, n_D = min(roots_H), min(roots_D)
+        n_H, n_D = min(roots_H), min(roots_D)
 
-    calculated_T = compute_transformation(p_inverse, n_H, n_D, C_H, C_D)
+        # 2 possible n_H and n_D each, so 4 possible scenarios
+        # Most are this first one. Most of the rest are the 2nd or 3rd.
+        # TODO: run more measurements to determine which scenario
+        possible_Ts = [compute_transformation(p_inverse, min(roots_H), min(roots_D), C_H, C_D),
+                       compute_transformation(p_inverse, min(roots_H), max(roots_D), C_H, C_D),
+                       compute_transformation(p_inverse, max(roots_H), min(roots_D), C_H, C_D),
+                       compute_transformation(p_inverse, max(roots_H), max(roots_D), C_H, C_D),]
+        errors = [round(np.linalg.norm(T - possible_Ts[0]), 2),
+                  round(np.linalg.norm(T - possible_Ts[1]), 2),
+                  round(np.linalg.norm(T - possible_Ts[2]), 2),
+                  round(np.linalg.norm(T - possible_Ts[3]), 2)]
 
-    print("N_H, N_D: ", (N_H, N_D))
-    print("Calculated n_H, n_D: ", roots_H, roots_D)
+        calculated_T = compute_transformation(p_inverse, n_H, n_D, C_H, C_D)
+        error = np.linalg.norm(T - calculated_T)
+        print(errors)
+        if error < 0.001:
+            count += 1
 
-    print(np.linalg.norm(T-calculated_T))
-    print((a, b_H, c_H))
-    print((a, b_D, c_D))
-    # print("\nT:\n", T)
-    # print("\nCalculated T:\n", calculated_T)
+        # print("N_H, N_D: ", (N_H, N_D))
+        # print("Calculated n_H, n_D: ", roots_H, roots_D)
+        # print("\nT:\n", T)
+        # print("\nCalculated T:\n", calculated_T)
+
+    print(count)
 
 
 
