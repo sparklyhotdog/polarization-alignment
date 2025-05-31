@@ -13,8 +13,8 @@ From these measured count rates, and our choice of PA rotations, our goal is to 
 
 
 def calculate_counts(rotations, N_H, N_D, T):
-    """Calculate the photon counts for both the H and D states, given a list of rotations, the count rates, N_H and N_D,
-     and a transformation T"""
+    """Calculate the expected photon counts for both the H and D states, given a list of rotations, the count rates,
+    N_H and N_D, and a transformation T"""
     C_H = np.asmatrix(np.empty((n, 1)))
     C_D = np.asmatrix(np.empty((n, 1)))
     for i in range(n):
@@ -25,29 +25,16 @@ def calculate_counts(rotations, N_H, N_D, T):
     return C_H, C_D
 
 
-def compute_transformation(p_inverse, n_H, n_D, C_H, C_D):
-    """Helper function to calculate the transformation T"""
-    T_col1 = p_inverse * (2 / n_H * C_H - np.ones((n, 1)))
-    T_col2 = p_inverse * (2 / n_D * C_D - np.ones((n, 1)))
-
-    # We can get the 3rd column by taking the cross-product of the first 2 columns, since we know that T is a rotation
-    # matrix and has orthonormal columns.
-    T_col3 = np.cross(T_col1.reshape(3), T_col2.reshape(3)).reshape((3, 1))
-
-    # Put the columns of T together
-    return np.hstack((T_col1, T_col2, T_col3))
-
-
 if __name__ == "__main__":
     count = 0
-    for i in range(100):
+    for j in range(100):
         # Generate an arbitrary rotation matrix (3x3, not a Mueller matrix so that we can use the scipy rotation library)
         T = r.as_matrix(r.from_euler("xyz", [2*np.pi*random.random(), 2*np.pi*random.random(), 2*np.pi*random.random()]))
         N_H = random.randrange(500, 1500)
         N_D = random.randrange(500, 1500)
 
         # Pick n >= 3 rotations for the PA to emulate
-        # TODO: find a specific condition for this. not all sequences of rotations will work (something pseudomatrix exists blah blah)
+        # TODO: find a specific condition for this. not all sequences of rotations will work (something pseudoinverse exists blah blah)
         R1 = r.as_matrix(r.from_rotvec([1, 0, 0]))
         R2 = r.as_matrix(r.from_rotvec([0, 1, 0]))
         R3 = r.as_matrix(r.from_rotvec([0, 0, 1]))
@@ -79,33 +66,45 @@ if __name__ == "__main__":
         roots_H = np.roots([a, b_H, c_H])
         roots_D = np.roots([a, b_D, c_D])
 
-        n_H, n_D = min(roots_H), min(roots_D)
+        found_T = False
+        calculated_T = np.empty((3, 3))
+        for i in range(4):
+            n_h = roots_H[i % 2]
+            n_d = roots_D[i // 2]
 
-        # 2 possible n_H and n_D each, so 4 possible scenarios
-        # Most are this first one. Most of the rest are the 2nd or 3rd.
-        # TODO: run more measurements to determine which scenario
-        possible_Ts = [compute_transformation(p_inverse, min(roots_H), min(roots_D), C_H, C_D),
-                       compute_transformation(p_inverse, min(roots_H), max(roots_D), C_H, C_D),
-                       compute_transformation(p_inverse, max(roots_H), min(roots_D), C_H, C_D),
-                       compute_transformation(p_inverse, max(roots_H), max(roots_D), C_H, C_D),]
-        errors = [round(np.linalg.norm(T - possible_Ts[0]), 2),
-                  round(np.linalg.norm(T - possible_Ts[1]), 2),
-                  round(np.linalg.norm(T - possible_Ts[2]), 2),
-                  round(np.linalg.norm(T - possible_Ts[3]), 2)]
+            # since T is a rotation matrix and has orthonormal columns, col1 and col2 must be orthogonal
+            T_col1 = p_inverse * (2 / n_h * C_H - np.ones((n, 1)))
+            T_col2 = p_inverse * (2 / n_d * C_D - np.ones((n, 1)))
 
-        calculated_T = compute_transformation(p_inverse, n_H, n_D, C_H, C_D)
+            if np.dot(T_col1.reshape(3), T_col2) > 1e-8:
+                continue
+
+            # Compute the 3rd column by taking the cross-product of the first 2 columns
+            T_col3 = np.cross(T_col1.reshape(3), T_col2.reshape(3)).reshape((3, 1))
+
+            # Put the columns of T together
+            calculated_T = np.hstack((T_col1, T_col2, T_col3))
+
+            # det(T) must equal 1, since it is a rotation matrix
+            if abs(np.linalg.det(calculated_T) - 1) > 1e-8:
+                continue
+
+            found_T = True
+            break
+
+        if not found_T:
+            print("Error :(")
+
         error = np.linalg.norm(T - calculated_T)
-        print(errors)
+
         if error < 0.001:
             count += 1
 
         # print("N_H, N_D: ", (N_H, N_D))
-        # print("Calculated n_H, n_D: ", roots_H, roots_D)
+        # print("Calculated n_H, n_D: ", n_h, n_d)
         # print("\nT:\n", T)
         # print("\nCalculated T:\n", calculated_T)
 
     print(count)
-
-
 
 
