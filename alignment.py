@@ -1,7 +1,6 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as r
 import random
-import matplotlib.pyplot as plt
 '''
 Polarization alignment process for a free-space polarization analyzer. 
 
@@ -12,16 +11,16 @@ From these measured count rates, and our choice of PA rotations, our goal is to 
 '''
 
 
-def calculate_counts(rotations, N_H, N_D, T):
+def calculate_counts(rotation_list, N_H, N_D, T):
     """Calculate the expected photon counts for both the H and D states, given a list of rotations, the count rates,
     N_H and N_D, and a transformation T"""
     C_H = np.asmatrix(np.empty((n, 1)))
     C_D = np.asmatrix(np.empty((n, 1)))
     for i in range(n):
         C_H[i][0] = 0.5 * N_H * (
-                    1 + np.asmatrix([1, 0, 0]) * rotations[i] * T * np.asmatrix(np.asarray([[1], [0], [0]])))
+                1 + np.asmatrix([1, 0, 0]) * rotation_list[i] * T * np.asmatrix(np.asarray([[1], [0], [0]])))
         C_D[i][0] = 0.5 * N_D * (
-                    1 + np.asmatrix([1, 0, 0]) * rotations[i] * T * np.asmatrix(np.asarray([[0], [1], [0]])))
+                1 + np.asmatrix([1, 0, 0]) * rotation_list[i] * T * np.asmatrix(np.asarray([[0], [1], [0]])))
     return C_H, C_D
 
 
@@ -52,12 +51,13 @@ if __name__ == "__main__":
         # We have an unknown rotation T, and measurements C_H and C_D corresponding to the chosen rotations
         p_inverse = np.linalg.pinv(P)
 
-        # Solve for N_H and N_D. We know that the columns of T are unit vectors, and solve a quadratic for both.
+        # We first solve for N_H and N_D.
+        # We can set up a quadratic equation for both from the fact that the columns of T are unit vectors
         Pc_H = p_inverse * C_H
         Pc_D = p_inverse * C_D
         A1 = p_inverse * np.ones((n, 1))
 
-        a = np.sum(np.square(A1)) - 1
+        a = np.sum(np.square(A1)) - 1       # The a term is the same for both
         b_H = -4 * np.sum(np.multiply(Pc_H, A1))
         b_D = -4 * np.sum(np.multiply(Pc_D, A1))
         c_H = 4 * np.sum(np.square(Pc_H))
@@ -66,13 +66,16 @@ if __name__ == "__main__":
         roots_H = np.roots([a, b_H, c_H])
         roots_D = np.roots([a, b_D, c_D])
 
+        # We have 2 possible answers for both N_H and N_D, which gives us 4 scenarios in total.
+        # However, the extraneous solutions won't produce valid rotation matrices (orthogonal matrices with det 1)
+        # So we iterate through the 4 scenarios and stop when we find a valid rotation matrix.
         found_T = False
         calculated_T = np.empty((3, 3))
         for i in range(4):
             n_h = roots_H[i % 2]
             n_d = roots_D[i // 2]
 
-            # since T is a rotation matrix and has orthonormal columns, col1 and col2 must be orthogonal
+            # Check if col1 and col2 must be orthogonal
             T_col1 = p_inverse * (2 / n_h * C_H - np.ones((n, 1)))
             T_col2 = p_inverse * (2 / n_d * C_D - np.ones((n, 1)))
 
@@ -82,10 +85,10 @@ if __name__ == "__main__":
             # Compute the 3rd column by taking the cross-product of the first 2 columns
             T_col3 = np.cross(T_col1.reshape(3), T_col2.reshape(3)).reshape((3, 1))
 
-            # Put the columns of T together
+            # Put the columns of T together to get our rotation matrix
             calculated_T = np.hstack((T_col1, T_col2, T_col3))
 
-            # det(T) must equal 1, since it is a rotation matrix
+            # Check if det(T) equals 1
             if abs(np.linalg.det(calculated_T) - 1) > 1e-8:
                 continue
 
