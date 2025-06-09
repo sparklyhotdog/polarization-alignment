@@ -1,6 +1,7 @@
 import numpy as np
 from client import Client
 from scipy.spatial.transform import Rotation as r
+import yaml
 
 
 def generate_eulerangles(rotations=None, rounding_digits=2):
@@ -24,15 +25,15 @@ def generate_eulerangles(rotations=None, rounding_digits=2):
     return rots
 
 
-def measure(num_rotations, rotations, verbose=False, path=None):
-    HOST = '169.254.142.114'
-    PA_port = 56000
-    PSY_port = 56010
-    PM_port = 56001
+def measure(num_rotations, rotations, yaml_fn, verbose=False, datapath=None):
+    """Takes powermeter measurements given a list of rotations (a nx3 matrix of euler angles)"""
+    y_fn = open(yaml_fn)
+    dicty = yaml.load(y_fn, Loader=yaml.SafeLoader)
+    y_fn.close()
 
-    pol_analyzer = Client(HOST, PA_port)
-    synthesizer = Client(HOST, PSY_port)
-    power_meter = Client(HOST, PM_port)
+    pol_analyzer = Client(dicty['PA1000']['host'], dicty['PA1000']['port'])
+    synthesizer = Client(dicty['PSY201']['host'], dicty['PSY201']['port'])
+    power_meter = Client(dicty['PM400']['host'], dicty['PM400']['port'])
 
     # We will only use the first three wave plates, so we set the last 3 to be 0
     pol_analyzer._send('retard 3 0')
@@ -55,8 +56,8 @@ def measure(num_rotations, rotations, verbose=False, path=None):
         synthesizer._send('d')
         counts[2 * i + 1] = 1000 * float(power_meter._send('pow?'))
 
-        if path is not None:
-            np.savetxt(path, counts)
+        if datapath is not None:
+            np.savetxt(datapath, counts)
 
     return counts
 
@@ -67,6 +68,6 @@ if __name__ == "__main__":
     rotation_list = generate_eulerangles()
     # print(rotation_list)
 
-    measurements = measure(n, rotation_list, verbose=True, path='data.txt')
+    measurements = measure(n, rotation_list, yaml_fn='serverinfo.yaml', verbose=True, datapath='data.txt')
 
     print(measurements)
