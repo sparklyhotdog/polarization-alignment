@@ -96,7 +96,7 @@ if __name__ == "__main__":
                                               [0, 1, 1],
                                               [1, 1, 1]]))
     # counts, actual_x = calc_expected_counts(rotation_list)
-    counts = measure(num_rotations, generate_eulerangles(rotations=rotation_list), verbose=True, datapath='data.txt'); print(counts)
+    counts = measure(num_rotations, generate_eulerangles(rotations=rotation_list), yaml_fn='serverinfo.yaml' ,verbose=True, datapath='data.txt'); print(counts)
     # counts = np.loadtxt('data.txt')
 
     for i in range(10):
