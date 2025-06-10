@@ -14,34 +14,39 @@ analyzer = Client(dicty['PA1000']['host'], dicty['PA1000']['port'])
 synth = Client(dicty['PSY201']['host'], dicty['PSY201']['port'])
 pow_meter = Client(dicty['PM400']['host'], dicty['PM400']['port'])
 
+# Set up the angles for the waveplates
+
 P = np.zeros(6)
 
-# inverse T, given the xyx euler angles of T
-P[0:3] = 360*np.ones(3) - np.asarray([301.47538674, 128.56914548,   9.17289652])
+# Set the angles for the first 3 waveplates to emulate inverse T.
+# The xyx euler angles of T are chosen from the txt output file from the least squares fitting
+leastsquares_output = np.loadtxt('leastsquares_output.txt')
+thetas = leastsquares_output[0][0:3]
+P[0:3] = 360*np.ones(3) - thetas
 
-# these are the offsets to undo F
+# Set the offsets to undo F (taken from the NuCrypt config info)
 P[3:6] = 360*np.ones(3) - np.asarray([117.972, 14.7918, 150.632])
 P = np.round(P, 5)
-print(P)
+print("Offsets for the waveplates: ", P)
 
 for i in range(6):
     msg = 'retard ' + str(i) + ' ' + str(P[i])
-    print(msg)
-    # analyzer._send(msg)
+    # print(msg)
+    analyzer._send(msg)
 
+# Start taking measurements
 bases = ['h', 'v', 'd', 'a']
 readings = [[], [], [], []]
 n = 15
-x = np.linspace(0, 360, n)      # max for NuCrypt retarders is 420
+x = np.linspace(0, 360, n)
 for i in range(4):
-    # Set polarization synthesizer to h, v, d, or a
-    synth._send(bases[i])
+    synth._send(bases[i])       # Set polarization synthesizer to H, V, D, A
 
     for angle_offset in x:
-        msg = 'retard 3 ' + str((P[3] + round(angle_offset, 5)) % 360)
+        msg = 'retard 3 ' + str((P[3] + round(angle_offset, 5)) % 360)      # Change the angle of the fourth plate
         print(msg)
         print(analyzer._send(msg))
-        readings[i].append(1000*float(pow_meter._send('pow?')))
+        readings[i].append(1000*float(pow_meter._send('pow?')))             # Record the power measurement
 
 analyzer.disconnect()
 synth.disconnect()
@@ -54,6 +59,6 @@ for i in range(4):
 ax.set(xlabel='Theta for Waveplate 4 (deg)', ylabel='Power (mW)')
 legend = plt.legend()
 ax.grid()
-plt.savefig("plots/fig1a.png")
+plt.savefig("plots/fig1_nideal.png")
 
 plt.show()

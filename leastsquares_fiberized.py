@@ -101,11 +101,16 @@ if __name__ == "__main__":
     # counts = measure(num_rotations, generate_eulerangles(rotations=rotation_list), yaml_fn='serverinfo.yaml', verbose=True, datapath='data.txt'); print(counts)
     counts = np.loadtxt('data.txt')
 
-    for i in range(10):
+    n = 10
+    outputs = np.empty((n, 7))
+    for i in range(n):
         result = least_squares_fitting(counts, cost_threshold=.5)
 
         x = result.x
+        outputs[i] = x
         calculated_T = rotation_nonideal_axes(axis1, axis2, axis3, [x[0], x[1], x[2]], degrees=True)
         print("\nCalculated T: \n", calculated_T)
         print("Result: ", x)
         print("Cost: ", result.cost)
+
+    np.savetxt('leastsquares_output.txt', outputs)
