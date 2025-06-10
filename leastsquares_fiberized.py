@@ -3,6 +3,7 @@ from scipy.spatial.transform import Rotation as r
 from scipy.optimize import least_squares
 import random
 from measurements import measure, generate_eulerangles
+from nonideal import rotation_nonideal_axes, calculate_euler_angles
 
 
 def calc_expected_counts(rotations):
@@ -11,7 +12,7 @@ def calc_expected_counts(rotations):
     # the thetas are the Euler angles of T (degrees)
     theta1, theta2, theta3 = random.randrange(0, 360), random.randrange(0, 180), random.randrange(0, 360)
     F = r.random().as_matrix()
-    T = r.from_euler("xyx", [theta1, theta2, theta3], degrees=True).as_matrix()
+    T = rotation_nonideal_axes(axis1, axis2, axis3, [theta1, theta2, theta3], degrees=True)
 
     # theta and phi are the spherical angles for the first row of F. (radians)
     # We also need to adjust the range of theta, since the range for arctan is [-pi/2, pi.2], but we prefer [0, 2pi]
@@ -48,15 +49,13 @@ def calc_expected_counts(rotations):
 def residuals(var):
     res = np.empty(2 * num_rotations)
     for index in range(num_rotations):
-        calc_T = r.from_euler("xyx", [var[0], var[1], var[2]], degrees=True).as_matrix()
+        calc_T = rotation_nonideal_axes(axis1, axis2, axis3, [var[0], var[1], var[2]], degrees=True)
         F_row1 = np.asmatrix(
             np.asarray([np.cos(var[3]) * np.sin(var[4]), np.sin(var[3]) * np.sin(var[4]), np.cos(var[4])]))
         calculated_C_H = 0.5 * var[5] * \
-                         (1 + F_row1 * r.as_matrix(rotation_list)[index] * calc_T * np.asmatrix(np.asarray([[1], [0], [0]])))[
-                             0, 0]
+            (1 + F_row1 * r.as_matrix(rotation_list)[index] * calc_T * np.asmatrix(np.asarray([[1], [0], [0]])))[0, 0]
         calculated_C_D = 0.5 * var[6] * \
-                         (1 + F_row1 * r.as_matrix(rotation_list)[index] * calc_T * np.asmatrix(np.asarray([[0], [1], [0]])))[
-                             0, 0]
+            (1 + F_row1 * r.as_matrix(rotation_list)[index] * calc_T * np.asmatrix(np.asarray([[0], [1], [0]])))[0, 0]
 
         res[2 * index] = calculated_C_H - counts[2 * index]
         res[2 * index + 1] = calculated_C_D - counts[2 * index + 1]
@@ -95,15 +94,18 @@ if __name__ == "__main__":
                                               [2, 0, 2],
                                               [0, 1, 1],
                                               [1, 1, 1]]))
+    axis1 = np.asarray([[.999633], [.0038151], [-.0268291]])
+    axis2 = np.asarray([[.0271085], [.999295], [.0259618]])
+    axis3 = np.asarray([[.9994289], [-.0335444], [.004005751]])
     # counts, actual_x = calc_expected_counts(rotation_list)
-    counts = measure(num_rotations, generate_eulerangles(rotations=rotation_list), yaml_fn='serverinfo.yaml' ,verbose=True, datapath='data.txt'); print(counts)
-    # counts = np.loadtxt('data.txt')
+    # counts = measure(num_rotations, generate_eulerangles(rotations=rotation_list), yaml_fn='serverinfo.yaml', verbose=True, datapath='data.txt'); print(counts)
+    counts = np.loadtxt('data.txt')
 
     for i in range(10):
         result = least_squares_fitting(counts, cost_threshold=.5)
 
         x = result.x
-        calculated_T = r.from_euler("xyx", [x[0], x[1], x[2]], degrees=True).as_matrix()
+        calculated_T = rotation_nonideal_axes(axis1, axis2, axis3, [x[0], x[1], x[2]], degrees=True)
         print("\nCalculated T: \n", calculated_T)
         print("Result: ", x)
         print("Cost: ", result.cost)

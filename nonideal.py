@@ -39,12 +39,12 @@ def rot_prime(axis, theta):
     return np.transpose(r.as_matrix(A2X)) @ R_x @ r.as_matrix(A2X)
 
 
-def rotation(A1, A2, A3, P):
+def rotation_nonideal_axes(A1, A2, A3, P, degrees=False):
     """ Returns the rotation matrix of the series of rotations around axes A1, A2, and A3 with angles corresponding to
     the 3d vector P """
-    R1 = r.from_rotvec(np.reshape(A1, 3) * P[0] / np.linalg.norm(A1))
-    R2 = r.from_rotvec(np.reshape(A2, 3) * P[1] / np.linalg.norm(A2))
-    R3 = r.from_rotvec(np.reshape(A3, 3) * P[2] / np.linalg.norm(A3))
+    R1 = r.from_rotvec(np.reshape(A1, 3) * P[0] / np.linalg.norm(A1), degrees=degrees)
+    R2 = r.from_rotvec(np.reshape(A2, 3) * P[1] / np.linalg.norm(A2), degrees=degrees)
+    R3 = r.from_rotvec(np.reshape(A3, 3) * P[2] / np.linalg.norm(A3), degrees=degrees)
 
     return r.as_matrix(R3 * R2 * R1)
 
@@ -66,7 +66,7 @@ def calculate_euler_angles(A1, A2, A3, M_goal):
 
     for i in range(10):
         # print(P)
-        M_est = rotation(A1, A2, A3, P)
+        M_est = rotation_nonideal_axes(A1, A2, A3, P)
         error = np.linalg.norm(M_est - M_goal)
         print("Error: ", error)
 
@@ -107,9 +107,9 @@ def calculate_euler_angles(A1, A2, A3, M_goal):
 
 if __name__ == "__main__":
     T = r.as_matrix(r.from_euler("xyz", [2*np.pi*random.random(), 2*np.pi*random.random(), 2*np.pi*random.random()]))
-    axis1 = np.asarray([[.99633], [.07800], [.03535]])
-    axis2 = np.asarray([[-.02737], [.99951], [.01495]])
-    axis3 = np.asarray([[.99570], [-.06269], [-.06821]])
+    axis1 = np.asarray([[.999633], [.0038151], [-.0268291]])
+    axis2 = np.asarray([[.0271085], [.999295], [.0259618]])
+    axis3 = np.asarray([[.9994289], [-.0335444], [.004005751]])
 
     angles = calculate_euler_angles(axis1, axis2, axis3, T)
     print("\nAngles (rad): ", angles)
