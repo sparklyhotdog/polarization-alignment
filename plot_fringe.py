@@ -20,7 +20,7 @@ P = np.zeros(6)
 
 # Set the angles for the first 3 waveplates to emulate inverse T.
 # The xyx euler angles of T are chosen from the txt output file from the least squares fitting
-leastsquares_output = np.loadtxt('leastsquares_output.txt')
+leastsquares_output = np.loadtxt('data/leastsquares_output.txt')
 thetas = leastsquares_output[0][0:3]
 P[0:3] = 360*np.ones(3) - thetas
 

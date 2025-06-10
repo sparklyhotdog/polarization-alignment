@@ -99,7 +99,7 @@ if __name__ == "__main__":
     axis3 = np.asarray([[.9994289], [-.0335444], [.004005751]])
     # counts, actual_x = calc_expected_counts(rotation_list)
     # counts = measure(num_rotations, generate_eulerangles(rotations=rotation_list), yaml_fn='serverinfo.yaml', verbose=True, datapath='data.txt'); print(counts)
-    counts = np.loadtxt('data.txt')
+    counts = np.loadtxt('data/data.txt')
 
     n = 10
     outputs = np.empty((n, 7))
@@ -113,4 +113,4 @@ if __name__ == "__main__":
         print("Result: ", x)
         print("Cost: ", result.cost)
 
-    np.savetxt('leastsquares_output.txt', outputs)
+    np.savetxt('data/leastsquares_output.txt', outputs)
