@@ -68,6 +68,6 @@ if __name__ == "__main__":
     rotation_list = generate_eulerangles()
     # print(rotation_list)
 
-    measurements = measure(n, rotation_list, yaml_fn='serverinfo.yaml', verbose=True, datapath='data.txt')
+    measurements = measure(n, rotation_list, yaml_fn='serverinfo.yaml', verbose=True, datapath='data/data.txt')
 
     print(measurements)

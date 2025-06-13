@@ -107,10 +107,18 @@ def calculate_euler_angles(A1, A2, A3, M_goal):
 
 if __name__ == "__main__":
     T = r.as_matrix(r.from_euler("xyz", [2*np.pi*random.random(), 2*np.pi*random.random(), 2*np.pi*random.random()]))
-    axis1 = np.asarray([[.999633], [.0038151], [-.0268291]])
-    axis2 = np.asarray([[.0271085], [.999295], [.0259618]])
-    axis3 = np.asarray([[.9994289], [-.0335444], [.004005751]])
+    axis0 = np.asarray([[.999633], [.0038151], [-.0268291]])
+    axis1 = np.asarray([[.0271085], [.999295], [.0259618]])
+    axis2 = np.asarray([[.9994289], [-.0335444], [.004005751]])
+    axis3 = np.asarray([[0], [1], [0]])
+    axis4 = np.asarray([[.997268], [-0.0702493], [0.0228234]])
+    axis5 = np.asarray([[-0.00005461419], [.999687], [-0.0250044]])
 
-    angles = calculate_euler_angles(axis1, axis2, axis3, T)
+    angles = calculate_euler_angles(axis0, axis1, axis2, T)
     print("\nAngles (rad): ", angles)
+
+    F = rotation_nonideal_axes(axis3, axis4, axis5, [117.972, 14.7918, 150.632])
+    F1 = rotation_nonideal_axes(axis3, axis4, axis5, 360*np.ones(3) - np.asarray([117.972, 14.7918, 150.632]))
+    print(F)
+    print(F1)
 

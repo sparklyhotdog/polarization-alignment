@@ -23,12 +23,12 @@ def calc_expected_counts(rotations):
         theta += 2 * np.pi
     phi = np.arccos(F[0, 2])  # [0, pi]
 
-    N_H = random.randrange(500, 1500)
-    N_D = random.randrange(500, 1500)
+    N_H = random.uniform(.2, 1)
+    N_D = random.uniform(.2, 1)
 
     actual_x = np.asarray([theta1, theta2, theta3, theta, phi, N_H, N_D])
 
-    sigma = 5       # standard deviation for noise
+    sigma = .001       # standard deviation for noise
     generated_counts = np.empty(2 * num_rotations)
     for i in range(num_rotations):
         # Map C_H to the even indices and C_D to the odd ones
@@ -63,15 +63,16 @@ def residuals(var):
 
 
 def least_squares_fitting(data, cost_threshold=10.0):
-    bounds = ([0, 0, 0, 0, 0, 0, 0], [360, 180, 360, 2 * np.pi, np.pi, np.inf, np.inf])
+
     success = False
     fitting = None
     while not success:
         x0 = [random.randrange(0, 360), random.randrange(0, 180), random.randrange(0, 360),
               random.uniform(0, 2 * np.pi), random.uniform(0, np.pi),
-              random.randrange(0, 2000), random.randrange(0, 2000)]
-        fitting = least_squares(residuals, x0, bounds=bounds, max_nfev=500, verbose=0)
+              max_C_H, max_C_D]
+        fitting = least_squares(residuals, x0, bounds=bounds, max_nfev=500, ftol=1e-10, verbose=1)
         success = fitting.cost < cost_threshold
+        # print(fitting.x)
     return fitting
 
 
@@ -97,20 +98,44 @@ if __name__ == "__main__":
     axis1 = np.asarray([[.999633], [.0038151], [-.0268291]])
     axis2 = np.asarray([[.0271085], [.999295], [.0259618]])
     axis3 = np.asarray([[.9994289], [-.0335444], [.004005751]])
+    axis3 = np.asarray([[0], [1], [0]])
+    axis4 = np.asarray([[.997268], [-0.0702493], [0.0228234]])
+    axis5 = np.asarray([[-0.00005461419], [.999687], [-0.0250044]])
+
     # counts, actual_x = calc_expected_counts(rotation_list)
-    # counts = measure(num_rotations, generate_eulerangles(rotations=rotation_list), yaml_fn='serverinfo.yaml', verbose=True, datapath='data.txt'); print(counts)
-    counts = np.loadtxt('data/data.txt')
+    # print(actual_x)
+    # print(rotation_nonideal_axes(axis1, axis2, axis3, [actual_x[0], actual_x[1], actual_x[2]], degrees=True))
+    # print(np.asarray([np.cos(actual_x[3]) * np.sin(actual_x[4]), np.sin(actual_x[3]) * np.sin(actual_x[4]), np.cos(actual_x[4])]))
+    counts = measure(num_rotations, generate_eulerangles(rotations=rotation_list), yaml_fn='serverinfo.yaml',
+                     verbose=True, datapath='data/data.txt')
+    # counts = np.loadtxt('data/data.txt')
+    # print(counts)
+
+    counts_reorganized = np.reshape(counts, (2, num_rotations), order='F')
+    print(counts_reorganized)
+    max_C_H = max(counts_reorganized[0])
+    max_C_D = max(counts_reorganized[1])
+    bounds = ([0, 0, 0, 0, 0, max_C_H, max_C_D], [360, 180, 360, 2 * np.pi, np.pi, np.inf, np.inf])
+    # bounds = ([0, 0, 0, 0, 0, 0, 0], [360, 180, 360, 2 * np.pi, np.pi, np.inf, np.inf])
 
     n = 10
     outputs = np.empty((n, 7))
+    T_matrices = np.empty((n, 9))
+    F_matrices = np.empty((n, 3))
     for i in range(n):
-        result = least_squares_fitting(counts, cost_threshold=.5)
+        result = least_squares_fitting(counts, cost_threshold=1)
 
         x = result.x
         outputs[i] = x
         calculated_T = rotation_nonideal_axes(axis1, axis2, axis3, [x[0], x[1], x[2]], degrees=True)
+        T_matrices[i] = calculated_T.reshape(9)
         print("\nCalculated T: \n", calculated_T)
+        f = np.asmatrix(np.asarray([np.cos(x[3]) * np.sin(x[4]), np.sin(x[3]) * np.sin(x[4]), np.cos(x[4])]))
+        F_matrices[i] = f
+        print("f: ", f)
         print("Result: ", x)
         print("Cost: ", result.cost)
 
     np.savetxt('data/leastsquares_output.txt', outputs)
+    np.savetxt('data/T_matrices.txt', T_matrices)
+    np.savetxt('data/F.txt', F_matrices)
