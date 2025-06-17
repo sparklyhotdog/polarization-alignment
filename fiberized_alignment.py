@@ -2,6 +2,8 @@ import numpy as np
 from scipy.spatial.transform import Rotation as r
 import random
 from scipy.optimize import direct, dual_annealing
+from measurements import measure, generate_eulerangles
+from nonideal import rotation_nonideal_axes, calculate_euler_angles
 import matplotlib.pyplot as plt
 from matplotlib import cm
 
@@ -16,7 +18,7 @@ class FiberizedAlignment:
         # We only care about the first row of each rotation, since we are multiplying it by the H polarizer matrix.
 
         for i in range(num_rotations):
-            P[i] = F_row1 @ rotations[i]
+            P[i] = F_row1 @ rotation_matrices[i]
 
         p_inverse = np.linalg.pinv(P)
 
@@ -43,12 +45,12 @@ class FiberizedAlignment:
         self.error = np.empty(4)
 
         for i in range(4):
-            self.N_h = self.roots_H[i % 2].real
-            self.N_d = self.roots_D[i // 2].real
+            N_h = self.roots_H[i % 2].real
+            N_d = self.roots_D[i // 2].real
 
             # Check if col1 and col2 must be orthogonal
-            T_col1 = p_inverse * (2 / self.N_h * counts_H - np.ones((num_rotations, 1)))
-            T_col2 = p_inverse * (2 / self.N_d * counts_D - np.ones((num_rotations, 1)))
+            T_col1 = p_inverse * (2 / N_h * counts_H - np.ones((num_rotations, 1)))
+            T_col2 = p_inverse * (2 / N_d * counts_D - np.ones((num_rotations, 1)))
             T_col3 = np.cross(T_col1.reshape(3), T_col2.reshape(3)).reshape((3, 1))
 
             # Put the columns of T together to get our rotation matrix
@@ -60,7 +62,7 @@ class FiberizedAlignment:
             self.determinants[i] = np.linalg.det(self.possibleTs[i])        # should be 1
             # print("det: ", self.determinants[i])
 
-            calc_c_h, calc_c_d = calculate_counts(rotations, N_H, N_D, self.possibleTs[i], F_row1)
+            calc_c_h, calc_c_d = calculate_counts(rotation_matrices, N_h, N_d, self.possibleTs[i], F_row1)
 
             self.error[i] = np.linalg.norm(counts_H - calc_c_h) + np.linalg.norm(counts_D - calc_c_d)
             # print("error: ", self.error[i])
@@ -84,6 +86,17 @@ def calculate_counts(rotation_list, N_H, N_D, T_matrix, F):
     return C_H, C_D
 
 
+def generate_counts():
+    T = r.random().as_matrix()
+    F = r.random().as_matrix()
+    N_H = random.randrange(500, 1500)
+    N_D = random.randrange(500, 1500)
+    print("T: ", T)
+    print("F: ", F[0])
+
+    return calculate_counts(rotation_matrices, N_H, N_D, T, F)
+
+
 def graph():
     n = 10
 
@@ -97,7 +110,7 @@ def graph():
         for j in range(n):
             F = np.asmatrix(
                 np.asarray([np.cos(theta[i]) * np.sin(phi[j]), np.sin(theta[i]) * np.sin(phi[j]), np.cos(phi[j])]))
-            A = FiberizedAlignment(C_H, C_D, rotations, F)
+            A = FiberizedAlignment(C_H, C_D, rotation_matrices, F)
             for k in range(4):
                 errors[k][i][j] = A.error[k]
                 dets[k][i][j] = A.determinants[k]
@@ -127,37 +140,35 @@ def fun(x, C_H, C_D, rotations):
 
 if __name__ == "__main__":
 
-    T = r.random().as_matrix()
-    F = r.random().as_matrix()
-    N_H = random.randrange(500, 1500)
-    N_D = random.randrange(500, 1500)
-    print("T: ", T)
-    print("F: ", F[0])
-
     # Pick n >= 3 rotations for the PA to emulate
-    R1 = r.as_matrix(r.from_rotvec([1, 0, 0]))
-    R2 = r.as_matrix(r.from_rotvec([0, 1, 0]))
-    R3 = r.as_matrix(r.from_rotvec([0, 0, 1]))
-    R4 = r.as_matrix(r.from_rotvec([0, 1, 1]))
-    rotations = [R1, R2, R3, R4]
+    rotations = r.from_rotvec(np.array([[1, 0, 0],
+                                        [0, 1, 0],
+                                        [0, 0, 1],
+                                        [0, 1, 1]]))
+    rotation_matrices = rotations.as_matrix()
 
-    C_H, C_D = calculate_counts(rotations, N_H, N_D, T, F)
+    # C_H, C_D = generate_counts()
+    # counts = measure(len(rotations), generate_eulerangles(rotations=rotations), yaml_fn='serverinfo.yaml',
+    #                  verbose=True, datapath='data/alignment_data.txt')
+    counts = np.loadtxt('data/alignment_data.txt')
+    counts_reorganized = np.reshape(counts, (2, len(rotations)), order='F')
+    C_H, C_D = np.reshape(counts_reorganized[0], (len(rotations), 1)), np.reshape(counts_reorganized[1], (len(rotations), 1))
 
     # ----------------------------------
 
     bounds = [(0, 2*np.pi), (0, np.pi)]
 
     # res = direct(fun, bounds, args=(C_H, C_D, rotations), f_min=0)
-    res = dual_annealing(fun, bounds, args=(C_H, C_D, rotations))
+    res = dual_annealing(fun, bounds, args=(C_H, C_D, rotation_matrices))
     F_guess = np.array([np.cos(res.x[0]) * np.sin(res.x[1]), np.sin(res.x[0]) * np.sin(res.x[1]), np.cos(res.x[1])])
     print("Calculated F:\n", F_guess)
-    # print(res.fun)
+    print(res.fun)
     # print(res.message)
 
-    A = FiberizedAlignment(C_H, C_D, rotations, F_guess)
+    A = FiberizedAlignment(C_H, C_D, rotation_matrices, F_guess)
     index = np.argmin(A.error)
-    # print(A.determinants[index])
-    # print(A.dotproducts[index])
+    print(A.determinants[index])
+    print(A.dotproducts[index])
     print("Calculated T: \n", A.possibleTs[index])
 
 
