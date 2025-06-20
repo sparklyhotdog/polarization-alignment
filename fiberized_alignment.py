@@ -9,6 +9,8 @@ from plot_fringe import plot
 
 class FiberizedAlignment:
     def __init__(self, count_data, rotation_matrices):
+        """Calculates the T matrix, the first row of F, and the count rates for the H and D states, respectively,
+        given the count measurements and the associated array of rotation matrices"""
         counts_reorganized = np.reshape(count_data, (2, len(rotations)), order='F')
         counts_H, counts_D = (np.reshape(counts_reorganized[0], (len(rotations), 1)),
                               np.reshape(counts_reorganized[1], (len(rotations), 1)))
@@ -33,6 +35,7 @@ class FiberizedAlignment:
         self.N_D = roots_D[index // 2]
 
     def calculate_retardance_angles(self, axes=None):
+        """Returns the retardance angles to set the 6 wave plates in order to reverse T and F."""
         T_rot = r.from_matrix(self.T)
         ret_angles = np.zeros(6)
 
@@ -68,7 +71,10 @@ def find_F(counts_H, counts_D, rotation_matrices):
 
 def calculate_T_from_F(counts_H, counts_D, rotation_matrices, F_row1):
     """Given the first row of F, calculates the 4 possible T matrices. If F is not correct, it may not output rotation
-    matrices."""
+    matrices. counts_H and counts_D are column vectors of the measurements.
+
+    Returns length 4 arrays with the possible T matrices, errors, roots for N_H, roots for N_D, the determinants of T,
+    and the dot products between col1 and col2 in T."""
     num_rotations = rotation_matrices.shape[0]
 
     P = np.asmatrix(np.empty((num_rotations, 3)))
@@ -123,7 +129,10 @@ def calculate_T_from_F(counts_H, counts_D, rotation_matrices, F_row1):
 
 def error(x, counts_H, counts_D, rotation_matrices):
     """The error function we are trying to minimize for finding F.
-    x is an array of theta and phi in radians--the spherical angles for the first row of F"""
+
+    Returns the error, given x (the spherical angles for the first row of F in radians),
+    counts_H and counts_D (column vectors of the measurements),
+    and rotation_matrices (an array of rotation matrices)"""
     F = np.asmatrix(np.asarray([np.cos(x[0]) * np.sin(x[1]), np.sin(x[0]) * np.sin(x[1]), np.cos(x[1])]))
     errors = calculate_T_from_F(counts_H, counts_D, rotation_matrices, F)[1]
     return min(errors)
@@ -131,7 +140,7 @@ def error(x, counts_H, counts_D, rotation_matrices):
 
 def calculate_counts(rotation_matrices, N_H, N_D, T_matrix, F):
     """Helper function to calculate the expected photon counts for both the H and D states,
-    given a list of rotations, the count rates, N_H and N_D, a rotation matrix T, and the first row of the F matrix"""
+    given an array of rotation matrices, the count rates (N_H and N_D) a rotation matrix T, and the first row of the F matrix"""
     C_H = np.asmatrix(np.empty((len(rotation_matrices), 1)))
     C_D = np.asmatrix(np.empty((len(rotation_matrices), 1)))
     for i in range(len(rotation_matrices)):
@@ -147,12 +156,12 @@ def calculate_counts(rotation_matrices, N_H, N_D, T_matrix, F):
     return C_H, C_D
 
 
-def generate_counts(rotation_matrices):
+def generate_counts(rotation_matrices, sigma=0):
+    """Randomly generates T, F, N_H, N_D, and simulates the rotations and measurements. Returns the expected count data."""
     T = r.random().as_matrix()
     F = r.random().as_matrix()
     N_H = random.uniform(0.5, 1)
     N_D = random.uniform(0.5, 1)
-    sigma = .0001
     print("T: ", T)
     print("F: ", F[0])
     print("N_H, N_D:", N_H, N_D)
@@ -164,7 +173,7 @@ def generate_counts(rotation_matrices):
         counts_D += random.gauss(sigma=sigma)
 
     print(calculate_T_from_F(counts_H, counts_D, rotation_matrices, F[0]))
-
+    # TODO: convert counts_H and counts_D into a 1D array
     return counts_H, counts_D
 
 
@@ -189,7 +198,7 @@ if __name__ == "__main__":
                                         [1, 1, 1]]))
     rots = rotations.as_matrix()
 
-    # C_H, C_D = generate_counts(rots)
+    # C_H, C_D = generate_counts(rots, sigma=0.001)
     # counts = measure(len(rotations), generate_eulerangles(rotations=rotations), yaml_fn='serverinfo.yaml',
     #                  verbose=True, datapath='data/data.txt')
     counts = np.loadtxt('data/data.txt')
