@@ -4,29 +4,12 @@ from scipy.spatial.transform import Rotation as r
 import yaml
 
 
-def generate_eulerangles(rotations=None, rounding_digits=2):
-    """theta1, theta3: [0, 360]
-    theta2: [0, 180]"""
-    if rotations is None:
-        rots = r.random(16).as_euler("xyx", degrees=True)
-    else:
-        rots = rotations.as_euler("xyx", degrees=True)
-    # scipy rotation library returns its euler angles with ranges [-180, 180], [0, 180], [-180, 180]
-    # but the polarization analyzer only accepts pos angles
+def measure(rotations, yaml_fn, verbose=False, datapath=None):
+    """Given a list of rotations in terms of its angles (nx3 matrix), returns the powermeter measurements corresponding
+    to the H and D states. The last three wave plates will be set to 0"""
+    num_rotations = rotations.shape[0]
+    rotations = rotations % 360     # the polarization analyzer accepts angles in degrees with range [0, 420]
 
-    for rot in rots:
-        if rot[0] < 0:
-            rot[0] += 180
-        if rot[2] < 0:
-            rot[2] += 180
-
-    rots = np.round(rots, rounding_digits)
-
-    return rots
-
-
-def measure(num_rotations, rotations, yaml_fn, verbose=False, datapath=None):
-    """Takes powermeter measurements given a list of rotations (a nx3 matrix of euler angles)"""
     y_fn = open(yaml_fn)
     dicty = yaml.load(y_fn, Loader=yaml.SafeLoader)
     y_fn.close()
@@ -41,11 +24,14 @@ def measure(num_rotations, rotations, yaml_fn, verbose=False, datapath=None):
     pol_analyzer._send('retard 5 0')
 
     counts = np.empty(2 * num_rotations)
+    actual_angles = []
     for i in range(num_rotations):
         # set the plate angles in the polarization analyzer
         for j in range(3):
             msg = 'retard ' + str(j) + ' ' + str(rotations[i][j])
             resp = pol_analyzer._send(msg)
+            actual_angles.append(resp)
+            # TODO: get this into an actual array
             if verbose:
                 print(msg)
                 print(resp)
@@ -59,15 +45,15 @@ def measure(num_rotations, rotations, yaml_fn, verbose=False, datapath=None):
         if datapath is not None:
             np.savetxt(datapath, counts)
 
-    return counts
+    return counts, actual_angles
 
 
 if __name__ == "__main__":
 
-    n = 16
-    rotation_list = generate_eulerangles()
+    rotation_list = r.as_euler(r.random(1), "xyx")
     # print(rotation_list)
 
-    measurements = measure(n, rotation_list, yaml_fn='serverinfo.yaml', verbose=True, datapath='data/data.txt')
+    measurements, angles = measure(rotation_list, yaml_fn='serverinfo.yaml', verbose=True, datapath='data/data.txt')
 
     print(measurements)
+    print(angles)

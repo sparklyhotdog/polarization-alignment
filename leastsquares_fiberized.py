@@ -2,12 +2,12 @@ import numpy as np
 from scipy.spatial.transform import Rotation as r
 from scipy.optimize import least_squares, direct, minimize
 import random
-from measurements import measure, generate_eulerangles
+from measurements import measure
 from nonideal import rotation_nonideal_axes, calculate_euler_angles
 from plot_fringe import plot
 
 
-def generate_expected_counts(rotations, sigma, axes=None):
+def generate_expected_counts(rotation_list, sigma, axes=None):
     """Given an array of scipy rotations, the standard deviation for added noise, and an optional array of non-ideal axes
     of rotation (nx3 array), returns the simulated count measurements and the actual values of our unknowns."""
 
@@ -39,12 +39,12 @@ def generate_expected_counts(rotations, sigma, axes=None):
     for i in range(num_rotations):
         # Map C_H to the even indices and C_D to the odd ones
         generated_counts[2 * i] = random.gauss(0.5 * N_H * (1 + (
-                    np.asmatrix([1, 0, 0]) * F * r.as_matrix(rotations)[i] * T *
-                    np.asmatrix(np.asarray([[1], [0], [0]])))[0, 0]), sigma)
+                np.asmatrix([1, 0, 0]) * F * r.as_matrix(rotation_list)[i] * T *
+                np.asmatrix(np.asarray([[1], [0], [0]])))[0, 0]), sigma)
 
         generated_counts[2 * i + 1] = random.gauss(0.5 * N_D * (1 + (
-                    np.asmatrix([1, 0, 0]) * F * r.as_matrix(rotations)[i] * T *
-                    np.asmatrix(np.asarray([[0], [1], [0]])))[0, 0]), sigma)
+                np.asmatrix([1, 0, 0]) * F * r.as_matrix(rotation_list)[i] * T *
+                np.asmatrix(np.asarray([[0], [1], [0]])))[0, 0]), sigma)
 
     return generated_counts, actual_x
 
@@ -146,9 +146,8 @@ if __name__ == "__main__":
     # print(actual_x)
     # print("T: ", rotation_nonideal_axes(axes[0], axes[1], axes[2], [actual_x[0], actual_x[1], actual_x[2]], degrees=True))
     # print("F: ", np.asarray([np.cos(actual_x[3]) * np.sin(actual_x[4]), np.sin(actual_x[3]) * np.sin(actual_x[4]), np.cos(actual_x[4])]))
-    # counts = measure(num_rotations, generate_eulerangles(rotations=rotation_list), yaml_fn='serverinfo.yaml',
-    #                  verbose=True, datapath='data/data.txt')
-    counts = np.loadtxt('data/data.txt')
+    counts = measure(r.as_euler(rotations, "xyx"), yaml_fn='serverinfo.yaml', verbose=True, datapath='data/data.txt')[0]
+    # counts = np.loadtxt('data/data.txt')
 
     result = least_squares_fitting(counts, rotations, axes=nonideal_axes)
 

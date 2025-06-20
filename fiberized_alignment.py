@@ -2,7 +2,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as r
 import random
 from scipy.optimize import direct, minimize
-from measurements import measure, generate_eulerangles
+from measurements import measure
 from nonideal import rotation_nonideal_axes, calculate_euler_angles
 from plot_fringe import plot
 
@@ -156,7 +156,7 @@ def calculate_counts(rotation_matrices, N_H, N_D, T_matrix, F):
     return C_H, C_D
 
 
-def generate_counts(rotation_matrices, sigma=0):
+def generate_counts(rotation_matrices, sigma=0.0):
     """Randomly generates T, F, N_H, N_D, and simulates the rotations and measurements. Returns the expected count data."""
     T = r.random().as_matrix()
     F = r.random().as_matrix()
@@ -172,9 +172,11 @@ def generate_counts(rotation_matrices, sigma=0):
         counts_H += random.gauss(sigma=sigma)
         counts_D += random.gauss(sigma=sigma)
 
-    print(calculate_T_from_F(counts_H, counts_D, rotation_matrices, F[0]))
+    # print(calculate_T_from_F(counts_H, counts_D, rotation_matrices, F[0]))
+    counts = np.hstack((counts_H, counts_D))
+    counts = np.reshape(counts, 2*counts_H.shape[0])
     # TODO: convert counts_H and counts_D into a 1D array
-    return counts_H, counts_D
+    return counts
 
 
 if __name__ == "__main__":
@@ -198,10 +200,9 @@ if __name__ == "__main__":
                                         [1, 1, 1]]))
     rots = rotations.as_matrix()
 
-    # C_H, C_D = generate_counts(rots, sigma=0.001)
-    # counts = measure(len(rotations), generate_eulerangles(rotations=rotations), yaml_fn='serverinfo.yaml',
-    #                  verbose=True, datapath='data/data.txt')
-    counts = np.loadtxt('data/data.txt')
+    counts = generate_counts(rots, sigma=0.001)
+    # counts = measure(r.as_euler(rotations, "xyx"), yaml_fn='serverinfo.yaml', verbose=True, datapath='data/data.txt')[0]
+    # counts = np.loadtxt('data/data.txt')
 
     A = FiberizedAlignment(counts, rots)
     print("Calculated T:\n", A.T)
