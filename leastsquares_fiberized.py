@@ -1,9 +1,10 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as r
-from scipy.optimize import least_squares
+from scipy.optimize import least_squares, direct, minimize
 import random
 from measurements import measure, generate_eulerangles
 from nonideal import rotation_nonideal_axes, calculate_euler_angles
+from plot_fringe import plot
 
 
 def calc_expected_counts(rotations):
@@ -46,7 +47,7 @@ def calc_expected_counts(rotations):
 # var is a list [theta1, theta2, theta3, theta, phi, N_H, N_D]
 # theta1, theta2, theta3 [0, 360] are the euler angles (xyx) in degrees
 # theta [0, 2pi] and phi [0, pi] are the spherical angles for the first row of F
-def residuals(var):
+def residuals(var, count_data):
     res = np.empty(2 * num_rotations)
     for index in range(num_rotations):
         calc_T = rotation_nonideal_axes(axes[0], axes[1], axes[2], [var[0], var[1], var[2]], degrees=True)
@@ -57,23 +58,46 @@ def residuals(var):
         calculated_C_D = 0.5 * var[6] * \
             (1 + F_row1 * r.as_matrix(rotation_list)[index] * calc_T * np.asmatrix(np.asarray([[0], [1], [0]])))[0, 0]
 
-        res[2 * index] = calculated_C_H - counts[2 * index]
-        res[2 * index + 1] = calculated_C_D - counts[2 * index + 1]
+        res[2 * index] = calculated_C_H - count_data[2 * index]
+        res[2 * index + 1] = calculated_C_D - count_data[2 * index + 1]
     return res
 
 
-def least_squares_fitting(cost_threshold=10.0):
+def cost(var, count_data):
+    return np.sum(residuals(var, count_data)**2)
 
-    success = False
-    fitting = None
-    while not success:
-        x0 = [random.randrange(0, 360), random.randrange(0, 180), random.randrange(0, 360),
-              random.uniform(0, 2 * np.pi), random.uniform(0, np.pi),
-              max_C_H, max_C_D]
-        fitting = least_squares(residuals, x0, bounds=bounds, max_nfev=500, ftol=1e-10, xtol=1e-9, verbose=1)
-        success = fitting.cost < cost_threshold
-        # print(fitting.x)
+
+def least_squares_fitting(count_data):
+    counts_reorganized = np.reshape(count_data, (2, num_rotations), order='F')
+    max_C_H = max(counts_reorganized[0])
+    max_C_D = max(counts_reorganized[1])
+    bounds = ([0, 0, 0, 0, 0, max_C_H, max_C_D], [360, 180, 360, 2 * np.pi, np.pi, np.inf, np.inf])
+    bounds_direct = [(0, 360), (0, 180), (0, 360), (0, 2 * np.pi), (0, np.pi), (max_C_H, 1.5 * max_C_H),
+                     (max_C_D, 1.5 * max_C_D)]
+    # x0 = [random.randrange(0, 360), random.randrange(0, 180), random.randrange(0, 360),
+    #       random.uniform(0, 2 * np.pi), random.uniform(0, np.pi),
+    #       max_C_H, max_C_D]
+    initial_result = direct(cost, bounds_direct, args=(count_data,))
+    x0 = initial_result.x
+    fitting = least_squares(residuals, x0, bounds=bounds, max_nfev=500, ftol=1e-10, xtol=1e-9, verbose=1, args=(count_data,))
     return fitting
+
+
+def calculate_ret_angles(var):
+    ret_angles = np.zeros(6)
+
+    ret_angles[0:3] = -np.flip(var[0:3]) % 360
+
+    f_theta = var[3]
+    f_phi = var[4]
+    f_row1 = np.asarray([np.cos(f_theta) * np.sin(f_phi), np.sin(f_theta) * np.sin(f_phi), np.cos(f_phi)])
+    ret_angles[3] = 360 - np.arccos(f_row1[0]) * 180 / np.pi
+    ret_angles[4] = np.arccos(f_row1[2] / np.sqrt(f_row1[1] ** 2 + f_row1[2] ** 2)) * 180 / np.pi
+    if f_row1[1] > 0:
+        ret_angles[4] = 360 - ret_angles[4]
+    print(ret_angles)
+
+    return ret_angles
 
 
 if __name__ == "__main__":
@@ -111,31 +135,16 @@ if __name__ == "__main__":
     counts = np.loadtxt('data/data.txt')
     # print(counts)
 
-    counts_reorganized = np.reshape(counts, (2, num_rotations), order='F')
-    max_C_H = max(counts_reorganized[0])
-    max_C_D = max(counts_reorganized[1])
-    bounds = ([0, 0, 0, 0, 0, max_C_H, max_C_D], [360, 180, 360, 2 * np.pi, np.pi, np.inf, np.inf])
-    # bounds = ([0, 0, 0, 0, 0, 0, 0], [360, 180, 360, 2 * np.pi, np.pi, np.inf, np.inf])
+    result = least_squares_fitting(counts)
 
-    n = 10
-    outputs = np.empty((n, 7))
-    T_matrices = np.empty((n, 9))
-    F_matrices = np.empty((n, 3))
-    for i in range(n):
-        result = least_squares_fitting(cost_threshold=1)
+    x = result.x
+    np.savetxt('data/leastsquares_output.txt', x)
+    calculated_T = rotation_nonideal_axes(axes[0], axes[1], axes[2], [x[0], x[1], x[2]], degrees=True)
+    print("\nCalculated T: \n", calculated_T)
+    f = np.asmatrix(np.asarray([np.cos(x[3]) * np.sin(x[4]), np.sin(x[3]) * np.sin(x[4]), np.cos(x[4])]))
+    print("First row of F: ", f)
+    print("Result: ", x)
+    print("Cost: ", result.cost)
 
-        x = result.x
-        outputs[i] = x
-        calculated_T = rotation_nonideal_axes(axes[0], axes[1], axes[2], [x[0], x[1], x[2]], degrees=True)
-        T_matrices[i] = calculated_T.reshape(9)
-        print("\nCalculated T: \n", calculated_T)
-        f = np.asmatrix(np.asarray([np.cos(x[3]) * np.sin(x[4]), np.sin(x[3]) * np.sin(x[4]), np.cos(x[4])]))
-        F_matrices[i] = f
-        print("f: ", f)
-        print("Result: ", x)
-        print("Cost: ", result.cost)
-        print(residuals(x))
-
-    # np.savetxt('data/leastsquares_output1.txt', outputs)
-    # np.savetxt('data/T_matrices1.txt', T_matrices)
-    # np.savetxt('data/F1.txt', F_matrices)
+    P = calculate_ret_angles(x)
+    # plot(P, title=str(P), filepath='plots/figii.png')

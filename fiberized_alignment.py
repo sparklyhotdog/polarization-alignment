@@ -1,32 +1,53 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as r
 import random
-from scipy.optimize import direct, dual_annealing, minimize
+from scipy.optimize import direct, minimize
 from measurements import measure, generate_eulerangles
 from nonideal import rotation_nonideal_axes, calculate_euler_angles
-import matplotlib.pyplot as plt
-from matplotlib import cm
+from plot_fringe import plot
 
 
 class FiberizedAlignment:
-    def __init__(self, counts_H, counts_D, rotation_matrices):
-
+    def __init__(self, count_data, rotation_matrices):
+        counts_reorganized = np.reshape(count_data, (2, len(rotations)), order='F')
+        counts_H, counts_D = (np.reshape(counts_reorganized[0], (len(rotations), 1)),
+                              np.reshape(counts_reorganized[1], (len(rotations), 1)))
         calculated_F = find_F(counts_H, counts_D, rotation_matrices)
-        Ts, errors = calculate_T_from_F(counts_H, counts_D, rotation_matrices, calculated_F)
+        Ts, errors, roots_H, roots_D = calculate_T_from_F(counts_H, counts_D, rotation_matrices, calculated_F)[0:4]
         index = np.argmin(errors)
         calculated_T = Ts[index]
+        print("Error: ", errors[index])
 
         # check that T is a rotation matrix
         det = np.linalg.det(calculated_T)
         dot = np.dot(calculated_T[:, 0], calculated_T[:, 1])
         is_rot_mat = (abs(det - 1) < 1e-5 and dot < 1e-5)
-        # print("determinant, dot product: ", det, dot)
 
         if not is_rot_mat:
+            print("Determinant, dot product: ", det, dot)
             print("Not a rotation matrix :(")
 
         self.F = calculated_F
         self.T = calculated_T
+        self.N_H = roots_H[index % 2]
+        self.N_D = roots_D[index // 2]
+
+    def calculate_retardance_angles(self, axes=None):
+        T_rot = r.from_matrix(self.T)
+        ret_angles = np.zeros(6)
+
+        # Assume ideal case
+        if axes is None:
+            print(T_rot.as_matrix())
+            ret_angles[0:3] = -np.flip(T_rot.as_euler("xyx", degrees=True)) % 360
+
+            ret_angles[3] = 360 - np.arccos(self.F[0]) * 180 / np.pi
+            ret_angles[4] = np.arccos(self.F[2] / np.sqrt(self.F[1] ** 2 + self.F[2] ** 2)) * 180 / np.pi
+            if self.F[1] > 0:
+                ret_angles[4] = 360 - ret_angles[4]
+            print(ret_angles)
+
+        return ret_angles
 
 
 def find_F(counts_H, counts_D, rotation_matrices):
@@ -76,6 +97,8 @@ def calculate_T_from_F(counts_H, counts_D, rotation_matrices, F_row1):
     # We have 2 possible answers for both N_H and N_D, which gives us 4 scenarios in total.
     possibleTs = np.empty((4, 3, 3))
     errors = np.empty(4)
+    determinants = np.empty(4)
+    dotproducts = np.empty(4)
 
     for i in range(4):
         N_h = roots_H[i % 2].real
@@ -88,19 +111,21 @@ def calculate_T_from_F(counts_H, counts_D, rotation_matrices, F_row1):
 
         # Put the columns of T together to get our rotation matrix
         possibleTs[i] = np.hstack((T_col1, T_col2, T_col3))
+        dotproducts[i] = (T_col1.reshape((1, 3)) @ T_col2)[0, 0]
+        determinants[i] = np.linalg.det(possibleTs[i])
 
         calc_c_h, calc_c_d = calculate_counts(rotation_matrices, N_h, N_d, possibleTs[i], F_row1)
 
         errors[i] = np.linalg.norm(counts_H - calc_c_h) + np.linalg.norm(counts_D - calc_c_d)
 
-    return possibleTs, errors
+    return possibleTs, errors, roots_H, roots_D, determinants, dotproducts
 
 
 def error(x, counts_H, counts_D, rotation_matrices):
     """The error function we are trying to minimize for finding F.
     x is an array of theta and phi in radians--the spherical angles for the first row of F"""
     F = np.asmatrix(np.asarray([np.cos(x[0]) * np.sin(x[1]), np.sin(x[0]) * np.sin(x[1]), np.cos(x[1])]))
-    Ts, errors = calculate_T_from_F(counts_H, counts_D, rotation_matrices, F)
+    errors = calculate_T_from_F(counts_H, counts_D, rotation_matrices, F)[1]
     return min(errors)
 
 
@@ -125,48 +150,22 @@ def calculate_counts(rotation_matrices, N_H, N_D, T_matrix, F):
 def generate_counts(rotation_matrices):
     T = r.random().as_matrix()
     F = r.random().as_matrix()
-    N_H = random.randrange(500, 1500)
-    N_D = random.randrange(500, 1500)
+    N_H = random.uniform(0.5, 1)
+    N_D = random.uniform(0.5, 1)
+    sigma = .0001
     print("T: ", T)
     print("F: ", F[0])
+    print("N_H, N_D:", N_H, N_D)
 
-    return calculate_counts(rotation_matrices, N_H, N_D, T, F)
+    counts_H, counts_D = calculate_counts(rotation_matrices, N_H, N_D, T, F)
 
+    for i in range(counts_H.shape[0]):
+        counts_H += random.gauss(sigma=sigma)
+        counts_D += random.gauss(sigma=sigma)
 
-def graph():
-    n = 10
+    print(calculate_T_from_F(counts_H, counts_D, rotation_matrices, F[0]))
 
-    theta = np.linspace(0, 2 * np.pi, n)
-    phi = np.linspace(0, np.pi, n)
-
-    errors = np.empty((4, n, n))
-    dets = np.empty((4, n, n))
-    dots = np.empty((4, n, n))
-    for i in range(n):
-        for j in range(n):
-            F = np.asmatrix(
-                np.asarray([np.cos(theta[i]) * np.sin(phi[j]), np.sin(theta[i]) * np.sin(phi[j]), np.cos(phi[j])]))
-            A = FiberizedAlignment(C_H, C_D, rotation_matrices, F)
-            for k in range(4):
-                errors[k][i][j] = A.error[k]
-                dets[k][i][j] = A.determinants[k]
-                dots[k][i][j] = A.dotproducts[k]
-
-    theta, phi = np.meshgrid(theta, phi)
-    x = np.cos(theta) * np.sin(phi)
-    y = np.sin(theta) * np.sin(phi)
-    z = np.cos(phi)
-
-    fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-    i = 1
-    color = cm.coolwarm(errors[i] / np.max(errors[i]))
-    surf = ax.plot_surface(x, y, z, cmap=cm.coolwarm, facecolors=color, linewidth=0, antialiased=False)
-
-    # Add a color bar which maps values to colors.
-    fig.colorbar(surf, shrink=0.5, aspect=5)
-
-    plt.show()
-
+    return counts_H, counts_D
 
 
 if __name__ == "__main__":
@@ -190,17 +189,17 @@ if __name__ == "__main__":
                                         [1, 1, 1]]))
     rots = rotations.as_matrix()
 
-    C_H, C_D = generate_counts(rots)
+    # C_H, C_D = generate_counts(rots)
     # counts = measure(len(rotations), generate_eulerangles(rotations=rotations), yaml_fn='serverinfo.yaml',
-    #                  verbose=True, datapath='data/alignment_data.txt')
-    # counts = np.loadtxt('data/alignment_data.txt')
-    # counts_reorganized = np.reshape(counts, (2, len(rotations)), order='F')
-    # C_H, C_D = np.reshape(counts_reorganized[0], (len(rotations), 1)), np.reshape(counts_reorganized[1], (len(rotations), 1))
+    #                  verbose=True, datapath='data/data.txt')
+    counts = np.loadtxt('data/data.txt')
 
-    # ----------------------------------
-    A = FiberizedAlignment(C_H, C_D, rots)
+    A = FiberizedAlignment(counts, rots)
     print("Calculated T:\n", A.T)
     print("Calculated F:\n", A.F)
+    print("N_H, N_D: ", A.N_H, A.N_D)
+    P = A.calculate_retardance_angles()
+    # plot(P, title=str(P), filepath='plots/figii.png')
 
 
 
