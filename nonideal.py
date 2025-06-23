@@ -3,12 +3,13 @@ Created on Fri May 23 12:18:15 2025
 """
 
 import numpy as np
+import numpy.typing as npt
 from scipy.spatial.transform import Rotation as r
 import random
 
 
 def r2x(v):
-    """Returns a rotation matrix that maps vector v to the x vector"""
+    """Returns a scipy rotation that maps vector v to the x vector"""
     v = np.reshape(v, 3)
     x = [1, 0, 0]
 
@@ -39,22 +40,23 @@ def rot_prime(axis, theta):
     return np.transpose(r.as_matrix(A2X)) @ R_x @ r.as_matrix(A2X)
 
 
-def rotation_nonideal_axes(A1, A2, A3, P, degrees=False):
-    """ Returns the rotation matrix of the series of rotations around axes A1, A2, and A3 with angles corresponding to
-    the 3d vector P """
-    R1 = r.from_rotvec(np.reshape(A1, 3) * P[0] / np.linalg.norm(A1), degrees=degrees)
-    R2 = r.from_rotvec(np.reshape(A2, 3) * P[1] / np.linalg.norm(A2), degrees=degrees)
-    R3 = r.from_rotvec(np.reshape(A3, 3) * P[2] / np.linalg.norm(A3), degrees=degrees)
+def rotation_nonideal_axes(axes: npt.NDArray, rot_angles: npt.ArrayLike, degrees: bool = False) -> npt.NDArray:
+    """ Returns the rotation matrix of the series of rotations in terms of its rotation axes and rotation angles.
+    axes should be a nx3 array. rot_angles should be a n length array"""
 
-    return r.as_matrix(R3 * R2 * R1)
+    rotation = r.identity()
+    for i in range(axes.shape[0]):
+        R_i = r.from_rotvec(np.reshape(axes[i], 3) * rot_angles[i] / np.linalg.norm(axes[i]), degrees=degrees)
+        rotation = R_i * rotation
+
+    return r.as_matrix(rotation)
 
 
-def calculate_euler_angles(A1, A2, A3, M_goal):
-    """Calculates the retardance angles needed to achieve rotation matrix M_goal
-    given non-ideal axes of rotation A1, A2, A3"""
-    error_threshold = .01
-    # trim M_goal
-    if M_goal.shape == (4,4):
+def calculate_euler_angles(M_goal, axes, error_threshold=.01, verbose=False):
+    """Returns the retardance angles (in radians) needed to achieve rotation matrix M_goal
+    given non-ideal axes of rotation (should be 3 axes to represent HDH)"""
+    # trim M_goal if needed
+    if M_goal.shape == (4, 4):
         M_goal = np.delete(M_goal, 0, 0)
         M_goal = np.delete(M_goal, 0, 1)
     R_goal = r.from_matrix(M_goal)
@@ -65,24 +67,26 @@ def calculate_euler_angles(A1, A2, A3, M_goal):
     prev_error = 1e20
 
     for i in range(10):
-        # print(P)
-        M_est = rotation_nonideal_axes(A1, A2, A3, P)
+        M_est = rotation_nonideal_axes(axes, P)
         error = np.linalg.norm(M_est - M_goal)
-        print("Error: ", error)
+
+        if verbose:
+            print("Error: ", error)
 
         if error < error_threshold:
-            print("Error threshold reached")
-            print(M_goal - M_est)
+            if verbose:
+                print("Error threshold reached")
+                print(M_goal - M_est)
             return P
         if error >= prev_error:
-            # error diverging
-            print("Error Diverging")
+            if verbose:
+                print("Error Diverging")
             return P
 
         # Compute the 9x3 Jacobian
-        J1 = rot(A3, P[2]) @ rot(A2, P[1]) @ rot_prime(A1, P[0])
-        J2 = rot(A3, P[2]) @ rot_prime(A2, P[1]) @ rot(A1, P[0])
-        J3 = rot_prime(A3, P[2]) @ rot(A2, P[1]) @ rot(A1, P[0])
+        J1 = rot(axes[2], P[2]) @ rot(axes[1], P[1]) @ rot_prime(axes[0], P[0])
+        J2 = rot(axes[2], P[2]) @ rot_prime(axes[1], P[1]) @ rot(axes[0], P[0])
+        J3 = rot_prime(axes[2], P[2]) @ rot(axes[1], P[1]) @ rot(axes[0], P[0])
         J1 = np.reshape(J1, (9, 1))
         J2 = np.reshape(J2, (9, 1))
         J3 = np.reshape(J3, (9, 1))
@@ -106,19 +110,17 @@ def calculate_euler_angles(A1, A2, A3, M_goal):
 
 
 if __name__ == "__main__":
-    T = r.as_matrix(r.from_euler("xyz", [2*np.pi*random.random(), 2*np.pi*random.random(), 2*np.pi*random.random()]))
-    axis0 = np.asarray([[.999633], [.0038151], [-.0268291]])
-    axis1 = np.asarray([[.0271085], [.999295], [.0259618]])
-    axis2 = np.asarray([[.9994289], [-.0335444], [.004005751]])
-    axis3 = np.asarray([[0], [1], [0]])
-    axis4 = np.asarray([[.997268], [-0.0702493], [0.0228234]])
-    axis5 = np.asarray([[-0.00005461419], [.999687], [-0.0250044]])
+    T = r.as_matrix(r.random())
+    nonideal_axes = np.asarray([[[.999633], [.0038151], [-.0268291]],
+                                [[.0271085], [.999295], [.0259618]],
+                                [[.9994289], [-.0335444], [.004005751]],
+                                [[0], [1], [0]],
+                                [[.997268], [-0.0702493], [0.0228234]],
+                                [[-0.00005461419], [.999687], [-0.0250044]]])
 
-    angles = calculate_euler_angles(axis0, axis1, axis2, T)
-    print("\nAngles (rad): ", angles)
+    angles = calculate_euler_angles(T, nonideal_axes[0:3])
+    print("Angles (rad): ", angles)
 
-    F = rotation_nonideal_axes(axis3, axis4, axis5, [117.972, 14.7918, 150.632])
-    F1 = rotation_nonideal_axes(axis3, axis4, axis5, 360*np.ones(3) - np.asarray([117.972, 14.7918, 150.632]))
-    print(F)
-    print(F1)
+    print(T)
+    print(rotation_nonideal_axes(nonideal_axes[0:3], angles))
 
