@@ -24,17 +24,22 @@ def measure(rotations, yaml_fn, verbose=False, datapath=None):
     pol_analyzer._send('retard 5 0')
 
     counts = np.empty(2 * num_rotations)
-    actual_angles = []
+    actual_angles = np.empty((num_rotations, 6))
     for i in range(num_rotations):
         # set the plate angles in the polarization analyzer
         for j in range(3):
             msg = 'retard ' + str(j) + ' ' + str(rotations[i][j])
             resp = pol_analyzer._send(msg)
-            actual_angles.append(resp)
-            # TODO: get this into an actual array
+
             if verbose:
                 print(msg)
                 print(resp)
+
+        resp = resp.strip("[]")
+        arr = resp.split(", ")
+        for j in range(6):
+            arr[j] = float(arr[j].strip("'"))
+        actual_angles[i] = arr
 
         # make measurements (in mW)
         synthesizer._send('h')
@@ -53,7 +58,7 @@ if __name__ == "__main__":
     rotation_list = r.as_euler(r.random(1), "xyx")
     # print(rotation_list)
 
-    measurements, angles = measure(rotation_list, yaml_fn='serverinfo.yaml', verbose=True, datapath='data/data.txt')
+    measurements, angles = measure(rotation_list, yaml_fn='serverinfo.yaml', verbose=True)
 
     print(measurements)
     print(angles)

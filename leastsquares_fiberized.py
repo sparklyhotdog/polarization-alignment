@@ -146,7 +146,7 @@ if __name__ == "__main__":
     # print(actual_x)
     # print("T: ", rotation_nonideal_axes(axes[0], axes[1], axes[2], [actual_x[0], actual_x[1], actual_x[2]], degrees=True))
     # print("F: ", np.asarray([np.cos(actual_x[3]) * np.sin(actual_x[4]), np.sin(actual_x[3]) * np.sin(actual_x[4]), np.cos(actual_x[4])]))
-    counts = measure(r.as_euler(rotations, "xyx"), yaml_fn='serverinfo.yaml', verbose=True, datapath='data/data.txt')[0]
+    counts, angles = measure(r.as_euler(rotations, "xyx"), yaml_fn='serverinfo.yaml', verbose=True, datapath='data/data.txt')[0]
     # counts = np.loadtxt('data/data.txt')
 
     result = least_squares_fitting(counts, rotations, axes=nonideal_axes)

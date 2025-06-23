@@ -201,7 +201,7 @@ if __name__ == "__main__":
     rots = rotations.as_matrix()
 
     counts = generate_counts(rots, sigma=0.001)
-    # counts = measure(r.as_euler(rotations, "xyx"), yaml_fn='serverinfo.yaml', verbose=True, datapath='data/data.txt')[0]
+    # counts, angles = measure(r.as_euler(rotations, "xyx"), yaml_fn='serverinfo.yaml', verbose=True, datapath='data/data.txt')[0]
     # counts = np.loadtxt('data/data.txt')
 
     A = FiberizedAlignment(counts, rots)
