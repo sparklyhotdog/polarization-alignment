@@ -146,8 +146,10 @@ if __name__ == "__main__":
                                 [[.997268], [-0.0702493], [0.0228234]],
                                 [[-0.00005461419], [.999687], [-0.0250044]]])
 
-    counts, actual_x = generate_expected_counts(rotations)
-    # counts, angles = measure(r.as_euler(rotations, "xyx"), yaml_fn='serverinfo.yaml', verbose=True, datapath='data/data.txt')
+    # counts, actual_x = generate_expected_counts(rotations)
+    counts, angles = measure(r.as_euler(rotations, "xyx"), yaml_fn='serverinfo.yaml', verbose=True, datapath='data/data.txt', rotpath='data/rot_angles.txt')
+    for i in range(len(rotations)):
+        rotations[i] = r.from_matrix(rotation_nonideal_axes(nonideal_axes, angles[i], degrees=True))
     # counts = np.loadtxt('data/data.txt')
 
     result = least_squares_fitting(counts, rotations, axes=nonideal_axes)
@@ -164,4 +166,4 @@ if __name__ == "__main__":
 
     P = calculate_ret_angles(x)
     print("Angles: ", P)
-    # plot(P, title=str(P), filepath='plots/figii.png')
+    plot(P, title=str(P), filepath='plots/figii.png')

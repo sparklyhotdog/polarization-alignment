@@ -4,11 +4,12 @@ from scipy.spatial.transform import Rotation as r
 import yaml
 
 
-def measure(rotations, yaml_fn, verbose=False, datapath=None):
+def measure(rotations, yaml_fn, verbose=False, datapath=None, rotpath=None):
     """Given a list of rotations in terms of its angles (nx3 matrix), returns the powermeter measurements corresponding
     to the H and D states. The last three wave plates will be set to 0"""
     num_rotations = rotations.shape[0]
     rotations = rotations % 360     # the polarization analyzer accepts angles in degrees with range [0, 420]
+    rotations = np.round(rotations, 10)     # the PA gets upset if there are too many decimals
 
     y_fn = open(yaml_fn)
     dicty = yaml.load(y_fn, Loader=yaml.SafeLoader)
@@ -19,9 +20,7 @@ def measure(rotations, yaml_fn, verbose=False, datapath=None):
     power_meter = Client(dicty['PM400']['host'], dicty['PM400']['port'])
 
     # We will only use the first three wave plates, so we set the last 3 to be 0
-    pol_analyzer._send('retard 3 0')
-    pol_analyzer._send('retard 4 0')
-    pol_analyzer._send('retard 5 0')
+    print(pol_analyzer._send('zeroall'))
 
     counts = np.empty(2 * num_rotations)
     actual_angles = np.empty((num_rotations, 6))
@@ -49,6 +48,8 @@ def measure(rotations, yaml_fn, verbose=False, datapath=None):
 
         if datapath is not None:
             np.savetxt(datapath, counts)
+        if rotpath is not None:
+            np.savetxt(rotpath, actual_angles)
 
     return counts, actual_angles
 

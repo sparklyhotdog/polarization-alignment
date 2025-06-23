@@ -5,7 +5,7 @@ from scipy.spatial.transform import Rotation as r
 import yaml
 
 
-def plot(ret_angles, title=None, filepath=None):
+def plot(ret_angles, title=None, filepath=None, verbose=False):
     """Plots the measured power while rotating the 4th wave plate in the polarization analyzer for the H, V, D, A states
     ret_angles is a array of 6 retardances for the waveplates"""
     y_fn = open('serverinfo.yaml')
@@ -17,9 +17,12 @@ def plot(ret_angles, title=None, filepath=None):
     pow_meter = Client(dicty['PM400']['host'], dicty['PM400']['port'])
 
     for i in range(6):
-        msg = 'retard ' + str(i) + ' ' + str(ret_angles[i])
-        print(msg)
-        analyzer._send(msg)
+        msg = 'retard ' + str(i) + ' ' + str(round(ret_angles[i], 10))
+        resp = analyzer._send(msg)
+
+        if verbose:
+            print(msg)
+            print(resp)
 
     # Start taking measurements
     bases = ['h', 'v', 'd', 'a']
@@ -30,10 +33,15 @@ def plot(ret_angles, title=None, filepath=None):
         synth._send(bases[i])  # Set polarization synthesizer to H, V, D, A
 
         for angle_offset in x:
-            msg = 'retard 3 ' + str((ret_angles[3] + round(angle_offset, 5)) % 360)  # Change the angle of the fourth plate
-            print(msg)
-            print(analyzer._send(msg))
+            # Change the angle of the fourth plate
+            msg = 'retard 3 ' + str(round((ret_angles[3] + round(angle_offset, 5)) % 360, 10))
+            resp = analyzer._send(msg)
+
             readings[i].append(1000 * float(pow_meter._send('pow?')))  # Record the power measurement
+
+            if verbose:
+                print(msg)
+                print(resp)
 
     analyzer.disconnect()
     synth.disconnect()
@@ -73,7 +81,6 @@ if __name__ == "__main__":
         P[4] = 360 - P[4]
     # P[3:6] = 360*np.ones(3) - np.asarray([117.972, 14.7918, 150.632])
     # P[3:6] = 360*np.ones(3) - P[3:6]
-    P = np.round(P, 5)
 
     print("Offsets for the waveplates: ", P)
-    plot(P, str(P), 'plots/jun20.png')
+    plot(P, str(P), 'plots/jun23.png', verbose=True)
