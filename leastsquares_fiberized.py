@@ -102,7 +102,7 @@ def least_squares_fitting(count_data, rotation_list, axes=None, verbose=False):
     return fitting
 
 
-def calculate_ret_angles(var):
+def calc_ret_angles_from_x(var):
     """Returns the retardance angles for the 6 wave plates to undo T and F, given the solution of the least-squares
     optimization."""
     ret_angles = np.zeros(6)
@@ -121,8 +121,23 @@ def calculate_ret_angles(var):
     return ret_angles
 
 
+def calc_ret_angles_from_matrix(T, F, axes):
+    """Returns the retardance angles for the 6 wave plates to undo T and F, given the 3x3 rotation matrix T
+    and the first row of the matrix F"""
+    ret_angles = np.zeros(6)
+    ret_angles[0:3] = calculate_euler_angles(T, axes[0:3])
+
+    ret_angles[3] = 360 - np.arccos(F[0]) * 180 / np.pi
+    ret_angles[4] = np.arccos(F[2] / np.sqrt(F[1] ** 2 + F[2] ** 2)) * 180 / np.pi
+    if F[1] > 0:
+        ret_angles[4] = 360 - ret_angles[4]
+
+    return ret_angles
+
+
+
 if __name__ == "__main__":
-    # rotations = r.random(num_rotations)
+    # rotations = r.random(16)
     rotations = r.from_rotvec(np.asarray([[0, 0, 0],
                                           [1, 0, 0],
                                           [2, 0, 0],
@@ -147,7 +162,7 @@ if __name__ == "__main__":
                                 [[-0.00005461419], [.999687], [-0.0250044]]])
 
     # counts, actual_x = generate_expected_counts(rotations)
-    counts, angles = measure(r.as_euler(rotations, "xyx"), yaml_fn='serverinfo.yaml', verbose=True, datapath='data/data.txt', rotpath='data/rot_angles.txt')
+    counts, angles = measure(r.as_euler(rotations, "xyx", degrees=True), yaml_fn='serverinfo.yaml', verbose=True, datapath='data/data.txt', rotpath='data/rot_angles.txt')
     for i in range(len(rotations)):
         rotations[i] = r.from_matrix(rotation_nonideal_axes(nonideal_axes, angles[i], degrees=True))
     # counts = np.loadtxt('data/data.txt')
@@ -158,12 +173,15 @@ if __name__ == "__main__":
     np.savetxt('data/leastsquares_output.txt', x)
 
     calculated_T = rotation_nonideal_axes(nonideal_axes[0:3], x[0:3], degrees=True)
-    calculated_F = np.asmatrix(np.asarray([np.cos(x[3]) * np.sin(x[4]), np.sin(x[3]) * np.sin(x[4]), np.cos(x[4])]))
+    calculated_F = np.asarray([np.cos(x[3]) * np.sin(x[4]), np.sin(x[3]) * np.sin(x[4]), np.cos(x[4])])
     print("\nCalculated T: \n", calculated_T)
     print("First row of F: ", calculated_F)
     print("Result: ", x)
     print("Cost: ", result.cost)
 
-    P = calculate_ret_angles(x)
-    print("Angles: ", P)
-    plot(P, title=str(P), filepath='plots/figii.png')
+    P_1 = calc_ret_angles_from_x(x)
+    print("Angles: ", P_1)
+    plot(P_1, title=str(P_1), filepath='plots/jun23a_1.png')
+    P_2 = calc_ret_angles_from_matrix(-calculated_T, -calculated_F, nonideal_axes)
+    plot(P_2, title=str(P_2), filepath='plots/jun23b_1.png')
+

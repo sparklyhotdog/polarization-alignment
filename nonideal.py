@@ -41,15 +41,15 @@ def rot_prime(axis, theta):
 
 
 def rotation_nonideal_axes(axes: npt.NDArray, rot_angles: npt.ArrayLike, degrees: bool = False) -> npt.NDArray:
-    """ Returns the rotation matrix of the series of rotations in terms of its rotation axes and rotation angles.
-    axes should be a nx3 array. rot_angles should be a n length array"""
-
+    """ Returns the rotation matrix of the series of n rotations in terms of its rotation axes and rotation angles.
+    axes should be a nx3 array. rot_angles should be a num_rotations x n array"""
+    # TODO: also be able to accommodate a list of rotations
     rotation = r.identity()
     for i in range(axes.shape[0]):
         R_i = r.from_rotvec(np.reshape(axes[i], 3) * rot_angles[i] / np.linalg.norm(axes[i]), degrees=degrees)
         rotation = R_i * rotation
 
-    return r.as_matrix(rotation)
+    return r.as_matrix(rotation)    # TODO: change return type to scipy rotation?
 
 
 def calculate_euler_angles(M_goal, axes, error_threshold=.01, verbose=False):

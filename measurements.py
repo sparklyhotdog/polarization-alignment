@@ -2,6 +2,7 @@ import numpy as np
 from client import Client
 from scipy.spatial.transform import Rotation as r
 import yaml
+import time
 
 
 def measure(rotations, yaml_fn, verbose=False, datapath=None, rotpath=None):
@@ -46,6 +47,9 @@ def measure(rotations, yaml_fn, verbose=False, datapath=None, rotpath=None):
         synthesizer._send('d')
         counts[2 * i + 1] = 1000 * float(power_meter._send('pow?'))
 
+        if verbose:
+            print("Measurements (mW):", counts[2 * i], counts[2 * i + 1])
+
         if datapath is not None:
             np.savetxt(datapath, counts)
         if rotpath is not None:
@@ -56,10 +60,10 @@ def measure(rotations, yaml_fn, verbose=False, datapath=None, rotpath=None):
 
 if __name__ == "__main__":
 
-    rotation_list = r.as_euler(r.random(1), "xyx")
+    rotation_list = r.as_euler(r.random(16), "xyx", degrees=True)
     # print(rotation_list)
 
     measurements, angles = measure(rotation_list, yaml_fn='serverinfo.yaml', verbose=True)
 
     print(measurements)
-    print(angles)
+    # print(angles)
