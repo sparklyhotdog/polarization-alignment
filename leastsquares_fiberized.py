@@ -2,9 +2,9 @@ import numpy as np
 from scipy.spatial.transform import Rotation as r
 from scipy.optimize import least_squares, direct, minimize
 import random
-from measurements import measure
+from measurements import measure_HD
 from nonideal import rotation_nonideal_axes, calculate_euler_angles
-from plot_fringe import plot
+from plot_fringe import plot, plot2
 
 
 def generate_expected_counts(rotation_list, sigma=0, axes=None):
@@ -103,7 +103,7 @@ def least_squares_fitting(count_data, rotation_list, axes=None, verbose=False):
 
 
 def calc_ret_angles_from_x(var):
-    """Returns the retardance angles for the 6 wave plates to undo T and F, given the solution of the least-squares
+    """Returns the retardance angles (degrees) for the 6 wave plates to undo T and F, given the solution of the least-squares
     optimization."""
     ret_angles = np.zeros(6)
 
@@ -122,10 +122,10 @@ def calc_ret_angles_from_x(var):
 
 
 def calc_ret_angles_from_matrix(T, F, axes):
-    """Returns the retardance angles for the 6 wave plates to undo T and F, given the 3x3 rotation matrix T
+    """Returns the retardance angles (degrees) for the 6 wave plates to undo T and F, given the 3x3 rotation matrix T
     and the first row of the matrix F"""
     ret_angles = np.zeros(6)
-    ret_angles[0:3] = calculate_euler_angles(T, axes[0:3])
+    ret_angles[0:3] = -np.flip(calculate_euler_angles(T, axes[0:3], degrees=True, error_threshold=0.0001)) % 360
 
     ret_angles[3] = 360 - np.arccos(F[0]) * 180 / np.pi
     ret_angles[4] = np.arccos(F[2] / np.sqrt(F[1] ** 2 + F[2] ** 2)) * 180 / np.pi
@@ -137,32 +137,32 @@ def calc_ret_angles_from_matrix(T, F, axes):
 
 
 if __name__ == "__main__":
-    # rotations = r.random(16)
-    rotations = r.from_rotvec(np.asarray([[0, 0, 0],
-                                          [1, 0, 0],
-                                          [2, 0, 0],
-                                          [3, 0, 0],
-                                          [0, 1, 0],
-                                          [0, 2, 0],
-                                          [0, 3, 0],
-                                          [0, 0, 1],
-                                          [0, 0, 2],
-                                          [0, 0, 3],
-                                          [1, 1, 0],
-                                          [2, 2, 0],
-                                          [1, 0, 1],
-                                          [2, 0, 2],
-                                          [0, 1, 1],
-                                          [1, 1, 1]]))
+    # rotations = r.from_rotvec(np.asarray([[0, 0, 0],
+    #                                       [1, 0, 0],
+    #                                       [2, 0, 0],
+    #                                       [3, 0, 0],
+    #                                       [0, 1, 0],
+    #                                       [0, 2, 0],
+    #                                       [0, 3, 0],
+    #                                       [0, 0, 1],
+    #                                       [0, 0, 2],
+    #                                       [0, 0, 3],
+    #                                       [1, 1, 0],
+    #                                       [2, 2, 0],
+    #                                       [1, 0, 1],
+    #                                       [2, 0, 2],
+    #                                       [0, 1, 1],
+    #                                       [1, 1, 1]]))
+    rotations = r.random(20)
     nonideal_axes = np.asarray([[[.999633], [.0038151], [-.0268291]],
                                 [[.0271085], [.999295], [.0259618]],
                                 [[.9994289], [-.0335444], [.004005751]],
                                 [[0], [1], [0]],
                                 [[.997268], [-0.0702493], [0.0228234]],
                                 [[-0.00005461419], [.999687], [-0.0250044]]])
-
     # counts, actual_x = generate_expected_counts(rotations)
-    counts, angles = measure(r.as_euler(rotations, "xyx", degrees=True), yaml_fn='serverinfo.yaml', verbose=True, datapath='data/data.txt', rotpath='data/rot_angles.txt')
+    counts, angles = measure_HD(r.as_euler(rotations, "xyx", degrees=True), verbose=True, datapath='data/data.txt',
+                                rotpath='data/rot_angles.txt')
     for i in range(len(rotations)):
         rotations[i] = r.from_matrix(rotation_nonideal_axes(nonideal_axes, angles[i], degrees=True))
     # counts = np.loadtxt('data/data.txt')
@@ -179,9 +179,15 @@ if __name__ == "__main__":
     print("Result: ", x)
     print("Cost: ", result.cost)
 
+    avg = (x[5] + x[6]) / 2
+    count_rates = [x[5], avg, x[6], avg]
+
     P_1 = calc_ret_angles_from_x(x)
     print("Angles: ", P_1)
-    plot(P_1, title=str(P_1), filepath='plots/jun23a_1.png')
-    P_2 = calc_ret_angles_from_matrix(-calculated_T, -calculated_F, nonideal_axes)
-    plot(P_2, title=str(P_2), filepath='plots/jun23b_1.png')
+    calculated_T[:, 0:2] = -calculated_T[:, 0:2]
+    calculated_F = -calculated_F
+    print("Other T: ", calculated_T)
+    print("Other F: ", calculated_F)
+    P_2 = calc_ret_angles_from_matrix(calculated_T, calculated_F, nonideal_axes)
+    plot2([P_1, P_2], title=str(np.round(P_1, 2)) + '\n' + str(np.round(P_2, 2)), filepath='plots/jun26_3.png', expected_count_rates=count_rates)
 

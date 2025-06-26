@@ -5,14 +5,14 @@ import yaml
 import time
 
 
-def measure(rotations, yaml_fn, verbose=False, datapath=None, rotpath=None):
+def measure_HD(rotations, verbose=False, datapath=None, rotpath=None):
     """Given a list of rotations in terms of its angles (nx3 matrix), returns the powermeter measurements corresponding
     to the H and D states. The last three wave plates will be set to 0"""
     num_rotations = rotations.shape[0]
     rotations = rotations % 360     # the polarization analyzer accepts angles in degrees with range [0, 420]
     rotations = np.round(rotations, 10)     # the PA gets upset if there are too many decimals
 
-    y_fn = open(yaml_fn)
+    y_fn = open('serverinfo.yaml')
     dicty = yaml.load(y_fn, Loader=yaml.SafeLoader)
     y_fn.close()
 
@@ -58,12 +58,58 @@ def measure(rotations, yaml_fn, verbose=False, datapath=None, rotpath=None):
     return counts, actual_angles
 
 
+def measure_for_plot(ret_angles, num_points=10, verbose=False):
+    """Returns measurements (mW) (4 x num_points array) from spanning the fourth waveplate rotation angle,
+    given a list of retardance angles (in degrees) to set the wave plates (should be an array of length 6). """
+
+    y_fn = open('serverinfo.yaml')
+    dicty = yaml.load(y_fn, Loader=yaml.SafeLoader)
+    y_fn.close()
+
+    analyzer = Client(dicty['PA1000']['host'], dicty['PA1000']['port'])
+    synth = Client(dicty['PSY201']['host'], dicty['PSY201']['port'])
+    pow_meter = Client(dicty['PM400']['host'], dicty['PM400']['port'])
+
+    for i in range(6):
+        msg = 'retard ' + str(i) + ' ' + str(round(ret_angles[i], 10))
+        resp = analyzer._send(msg)
+
+        if verbose:
+            print(msg)
+            print(resp)
+
+    # Start taking measurements
+    bases = ['h', 'v', 'd', 'a']
+    readings = np.zeros(shape=(4, num_points))
+
+    x = np.linspace(0, 360, num_points)
+    for i in range(4):
+        synth._send(bases[i])  # Set polarization synthesizer to H, V, D, A
+
+        for j in range(num_points):
+            # Change the angle of the fourth plate
+            msg = 'retard 3 ' + str(round((ret_angles[3] + round(x[j], 5)) % 360, 10))
+            resp = analyzer._send(msg)
+
+            readings[i][j] = (1000 * float(pow_meter._send('pow?')))  # Record the power measurement
+
+            if verbose:
+                print(msg)
+                print(resp)
+
+    analyzer.disconnect()
+    synth.disconnect()
+    pow_meter.disconnect()
+
+    return readings
+
+
 if __name__ == "__main__":
 
     rotation_list = r.as_euler(r.random(16), "xyx", degrees=True)
     # print(rotation_list)
 
-    measurements, angles = measure(rotation_list, yaml_fn='serverinfo.yaml', verbose=True)
+    measurements, angles = measure_HD(rotation_list, verbose=True)
 
     print(measurements)
     # print(angles)

@@ -52,7 +52,7 @@ def rotation_nonideal_axes(axes: npt.NDArray, rot_angles: npt.ArrayLike, degrees
     return r.as_matrix(rotation)    # TODO: change return type to scipy rotation?
 
 
-def calculate_euler_angles(M_goal, axes, error_threshold=.01, verbose=False):
+def calculate_euler_angles(M_goal, axes, error_threshold=.01, verbose=False, degrees=False):
     """Returns the retardance angles (in radians) needed to achieve rotation matrix M_goal
     given non-ideal axes of rotation (should be 3 axes to represent HDH)"""
     # trim M_goal if needed
@@ -63,11 +63,11 @@ def calculate_euler_angles(M_goal, axes, error_threshold=.01, verbose=False):
 
     # initial guess with the ideal case
     # use "xyx" for HDH; "yxy" for DHD
-    P = r.as_euler(R_goal, "xyx")
+    P = r.as_euler(R_goal, "xyx", degrees=degrees)
     prev_error = 1e20
 
     for i in range(10):
-        M_est = rotation_nonideal_axes(axes, P)
+        M_est = rotation_nonideal_axes(axes, P, degrees=degrees)
         error = np.linalg.norm(M_est - M_goal)
 
         if verbose:

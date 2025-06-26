@@ -2,7 +2,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as r
 import random
 from scipy.optimize import direct, minimize
-from measurements import measure
+from measurements import measure_HD
 from nonideal import rotation_nonideal_axes, calculate_euler_angles
 from plot_fringe import plot
 
