@@ -4,7 +4,7 @@ import random
 from scipy.optimize import direct, minimize
 from measurements import measure_HD
 from nonideal import rotation_nonideal_axes, calculate_euler_angles
-from plot_fringe import plot
+from plot_fringe import plot, plot2
 
 
 class FiberizedAlignment:
@@ -198,18 +198,27 @@ if __name__ == "__main__":
                                         [2, 0, 2],
                                         [0, 1, 1],
                                         [1, 1, 1]]))
-    rots = rotations.as_matrix()
+    nonideal_axes = np.asarray([[[.999633], [.0038151], [-.0268291]],
+                                [[.0271085], [.999295], [.0259618]],
+                                [[.9994289], [-.0335444], [.004005751]],
+                                [[0], [1], [0]],
+                                [[.997268], [-0.0702493], [0.0228234]],
+                                [[-0.00005461419], [.999687], [-0.0250044]]])
 
-    counts = generate_counts(rots, sigma=0.001)
-    # counts, angles = measure(r.as_euler(rotations, "xyx"), yaml_fn='serverinfo.yaml', verbose=True, datapath='data/data.txt')[0]
+    # counts = generate_counts(rots, sigma=0.001)
+    counts, angles = measure_HD(r.as_euler(rotations, "xyx", degrees=True), verbose=True, datapath='data/data.txt')
     # counts = np.loadtxt('data/data.txt')
+
+    for i in range(len(rotations)):
+        rotations[i] = r.from_matrix(rotation_nonideal_axes(nonideal_axes, angles[i], degrees=True))
+    rots = rotations.as_matrix()
 
     A = FiberizedAlignment(counts, rots)
     print("Calculated T:\n", A.T)
     print("Calculated F:\n", A.F)
     print("N_H, N_D: ", A.N_H, A.N_D)
     P = A.calculate_retardance_angles()
-    # plot(P, title=str(P), filepath='plots/figii.png')
+    plot(P, title=str(P), filepath='plots/jun27--.png')
 
 
 

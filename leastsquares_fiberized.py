@@ -7,51 +7,6 @@ from nonideal import rotation_nonideal_axes, calculate_euler_angles
 from plot_fringe import plot, plot2
 
 
-def generate_expected_counts(rotation_list, sigma=0, axes=None):
-    """Given an array of scipy rotations, the standard deviation for added noise, and an optional array of non-ideal axes
-    of rotation (nx3 array), returns the simulated count measurements and the actual values of our unknowns."""
-
-    # Generate the Euler angles of T (degrees) and F
-    theta1, theta2, theta3 = random.randrange(0, 360), random.randrange(0, 180), random.randrange(0, 360)
-    F = r.random().as_matrix()
-
-    if axes is None:
-        T = r.as_matrix(r.from_euler("xyx", [theta1, theta2, theta3], degrees=True))
-    else:
-        T = rotation_nonideal_axes(axes[0:3], [theta1, theta2, theta3], degrees=True)
-
-    # From the first row of F, calculate theta and phi, the spherical angles for the first row of F. (radians)
-    # We also need to adjust the range of theta, since the range for arctan is [-pi/2, pi.2], but we prefer [0, 2pi]
-    theta = np.arctan(F[0, 1] / F[0, 0])  # [-pi/2, pi/2]
-    if F[0, 0] < 0:
-        theta += np.pi
-    elif F[0, 1] < 0:
-        theta += 2 * np.pi
-    phi = np.arccos(F[0, 2])  # [0, pi]
-
-    # Generate the count rates for the H and D states
-    N_H = random.uniform(.2, 1)
-    N_D = random.uniform(.2, 1)
-
-    actual_x = np.asarray([theta1, theta2, theta3, theta, phi, N_H, N_D])
-    print("actual x: ", actual_x)
-    print("T: ", T)
-    print("F: ", F)
-
-    generated_counts = np.empty(2 * len(rotation_list))
-    for i in range(len(rotation_list)):
-        # Map C_H to the even indices and C_D to the odd ones
-        generated_counts[2 * i] = random.gauss(0.5 * N_H * (1 + (
-                np.asmatrix([1, 0, 0]) * F * r.as_matrix(rotation_list)[i] * T *
-                np.asmatrix(np.asarray([[1], [0], [0]])))[0, 0]), sigma)
-
-        generated_counts[2 * i + 1] = random.gauss(0.5 * N_D * (1 + (
-                np.asmatrix([1, 0, 0]) * F * r.as_matrix(rotation_list)[i] * T *
-                np.asmatrix(np.asarray([[0], [1], [0]])))[0, 0]), sigma)
-
-    return generated_counts, actual_x
-
-
 def residuals(var, count_data, rotation_list, axes=None):
     """"Given an array of our unknowns, the count measurements, an array of scipy rotations, and an optional array of
     non-ideal axes of rotation (nx3 array),
@@ -98,7 +53,7 @@ def least_squares_fitting(count_data, rotation_list, axes=None, verbose=False):
                      (max_C_D, 1.5 * max_C_D)]
     initial_result = direct(cost, bounds_direct, args=(count_data, rotation_list, axes))
     x0 = initial_result.x
-    fitting = least_squares(residuals, x0, bounds=bounds, max_nfev=500, ftol=1e-10, xtol=1e-9, verbose=verbose, args=(count_data, rotation_list, axes))
+    fitting = least_squares(residuals, x0, bounds=bounds, max_nfev=500, ftol=1e-10, xtol=1e-10, gtol=1e-10, verbose=verbose, args=(count_data, rotation_list, axes))
     return fitting
 
 
@@ -125,7 +80,7 @@ def calc_ret_angles_from_matrix(T, F, axes):
     """Returns the retardance angles (degrees) for the 6 wave plates to undo T and F, given the 3x3 rotation matrix T
     and the first row of the matrix F"""
     ret_angles = np.zeros(6)
-    ret_angles[0:3] = -np.flip(calculate_euler_angles(T, axes[0:3], degrees=True, error_threshold=0.0001)) % 360
+    ret_angles[0:3] = -np.flip(calculate_euler_angles(T, axes[0:3], degrees=True, error_threshold=0.00001)) % 360
 
     ret_angles[3] = 360 - np.arccos(F[0]) * 180 / np.pi
     ret_angles[4] = np.arccos(F[2] / np.sqrt(F[1] ** 2 + F[2] ** 2)) * 180 / np.pi
@@ -189,5 +144,5 @@ if __name__ == "__main__":
     print("Other T: ", calculated_T)
     print("Other F: ", calculated_F)
     P_2 = calc_ret_angles_from_matrix(calculated_T, calculated_F, nonideal_axes)
-    plot2([P_1, P_2], title=str(np.round(P_1, 2)) + '\n' + str(np.round(P_2, 2)), filepath='plots/jun26_3.png', expected_count_rates=count_rates)
+    plot2([P_1, P_2], title=str(np.round(P_1, 2)) + '\n' + str(np.round(P_2, 2)), filepath='plots/jun30_.png', expected_count_rates=None)
 

@@ -7,7 +7,7 @@ import time
 
 def measure_HD(rotations, verbose=False, datapath=None, rotpath=None):
     """Given a list of rotations in terms of its angles (nx3 matrix), returns the powermeter measurements corresponding
-    to the H and D states. The last three wave plates will be set to 0"""
+    to the H and D states, and the angles set during the measurements. The last three wave plates will be set to 0"""
     num_rotations = rotations.shape[0]
     rotations = rotations % 360     # the polarization analyzer accepts angles in degrees with range [0, 420]
     rotations = np.round(rotations, 10)     # the PA gets upset if there are too many decimals

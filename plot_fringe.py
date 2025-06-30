@@ -121,8 +121,9 @@ if __name__ == "__main__":
         P[4] = 360 - P[4]
     # P[3:6] = 360*np.ones(3) - np.asarray([117.972, 14.7918, 150.632])
     # P[3:6] = 360*np.ones(3) - P[3:6]
+    P = np.zeros(6)
 
     print("Offsets for the waveplates: ", P)
-    plot(P, title=str(P), filepath='plots/jun26_.png', verbose=True, expected_count_rates=count_rates)
+    plot(P, title=str(P), filepath='plots/jun30_nocompensation.png', verbose=True)
 
     # plot2(np.zeros((2, 6)), expected_count_rates=[.8, .8, .8, .8])
