@@ -79,11 +79,11 @@ def measure_for_plot(ret_angles, num_points=10, verbose=False):
             print(resp)
 
     # Start taking measurements
-    bases = ['h', 'v', 'd', 'a']
-    readings = np.zeros(shape=(4, num_points))
+    bases = ['h', 'v', 'd', 'a', 'r', 'l']
+    readings = np.zeros(shape=(6, num_points))
 
     x = np.linspace(0, 360, num_points)
-    for i in range(4):
+    for i in range(6):
         synth._send(bases[i])  # Set polarization synthesizer to H, V, D, A
 
         for j in range(num_points):

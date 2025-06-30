@@ -14,8 +14,7 @@ def plot(ret_angles=None, num_points=10, title=None, filepath=None, verbose=Fals
     if ret_angles is None:
         ret_angles = np.zeros(6)
 
-
-    bases = ['H', 'V', 'D', 'A']
+    bases = ['H', 'V', 'D', 'A', 'R', 'L']
 
     x = np.linspace(0, 360, num_points)
     x_radians = x * np.pi / 180
@@ -23,7 +22,7 @@ def plot(ret_angles=None, num_points=10, title=None, filepath=None, verbose=Fals
     readings = measure_for_plot(ret_angles, verbose=verbose)
 
     fig, ax = plt.subplots()
-    for i in range(4):
+    for i in range(6):
         ax.plot(x, readings[i], label=bases[i])
 
     if expected_count_rates is not None:
@@ -53,7 +52,7 @@ def plot2(ret_angles=None, num_points=10, title=None, filepath=None, verbose=Fal
     if ret_angles is None:
         ret_angles = np.zeros((2, 6))
 
-    bases = ['H', 'V', 'D', 'A']
+    bases = ['H', 'V', 'D', 'A', 'R', 'L']
     x = np.linspace(0, 360, num_points)
     x_radians = x * np.pi / 180
 
@@ -62,7 +61,7 @@ def plot2(ret_angles=None, num_points=10, title=None, filepath=None, verbose=Fal
 
     ax0 = plt.subplot(211)
 
-    for i in range(4):
+    for i in range(6):
         plt.plot(x, readings0[i], label=bases[i])
 
     if expected_count_rates is not None:
@@ -78,7 +77,7 @@ def plot2(ret_angles=None, num_points=10, title=None, filepath=None, verbose=Fal
 
     ax1 = plt.subplot(212, sharex=ax0, sharey=ax0)
 
-    for i in range(4):
+    for i in range(6):
         plt.plot(x, readings1[i], label=bases[i])
 
     if expected_count_rates is not None:
