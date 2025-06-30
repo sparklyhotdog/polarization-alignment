@@ -218,7 +218,7 @@ if __name__ == "__main__":
     print("Calculated F:\n", A.F)
     print("N_H, N_D: ", A.N_H, A.N_D)
     P = A.calculate_retardance_angles()
-    plot(P, title=str(P), filepath='plots/jun27--.png')
+    plot(P, title=str(P), filepath='plots/jun30--.png')
 
 
 

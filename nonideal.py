@@ -41,8 +41,8 @@ def rot_prime(axis, theta):
 
 
 def rotation_nonideal_axes(axes: npt.NDArray, rot_angles: npt.ArrayLike, degrees: bool = False) -> npt.NDArray:
-    """ Returns the rotation matrix of the series of n rotations in terms of its rotation axes and rotation angles.
-    axes should be a nx3 array. rot_angles should be a num_rotations x n array"""
+    """ Returns the rotation matrix of a rotation in terms of its rotation axes and rotation angles.
+    axes should be a nx3 array. rot_angles should be a n array"""
     # TODO: also be able to accommodate a list of rotations
     rotation = r.identity()
     for i in range(axes.shape[0]):

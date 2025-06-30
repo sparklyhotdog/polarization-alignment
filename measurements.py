@@ -20,8 +20,8 @@ def measure_HD(rotations, verbose=False, datapath=None, rotpath=None):
     synthesizer = Client(dicty['PSY201']['host'], dicty['PSY201']['port'])
     power_meter = Client(dicty['PM400']['host'], dicty['PM400']['port'])
 
-    # We will only use the first three wave plates, so we set the last 3 to be 0
-    print(pol_analyzer._send('zeroall'))
+    # We will only use the first three wave plates to set the rotations, so we set the last 3 to be 0
+    pol_analyzer._send('zeroall')
 
     counts = np.empty(2 * num_rotations)
     actual_angles = np.empty((num_rotations, 6))
@@ -35,6 +35,7 @@ def measure_HD(rotations, verbose=False, datapath=None, rotpath=None):
                 print(msg)
                 print(resp)
 
+        # record the angles given back by the polarization analyzer
         resp = resp.strip("[]")
         arr = resp.split(", ")
         for j in range(6):
@@ -107,7 +108,6 @@ def measure_for_plot(ret_angles, num_points=10, verbose=False):
 if __name__ == "__main__":
 
     rotation_list = r.as_euler(r.random(16), "xyx", degrees=True)
-    # print(rotation_list)
 
     measurements, angles = measure_HD(rotation_list, verbose=True)
 

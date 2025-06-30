@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 from scipy.spatial.transform import Rotation as r
 import random
-from leastsquares_fiberized import least_squares_fitting, calc_ret_angles_from_matrix, calc_ret_angles_from_x, cost
+from leastsquares_fiberized import least_squares_fitting, calc_ret_angles_from_matrix, cost
 from nonideal import rotation_nonideal_axes
 
 nonideal_axes = np.asarray([[[.999633], [.0038151], [-.0268291]],
@@ -142,13 +142,10 @@ class LeastSquaresTest(unittest.TestCase):
         print("Cost: ", result.cost)
         print("cost of actual x", cost(actual_x, counts, rotations, ideal_axes))
 
-        angles_from_x = calc_ret_angles_from_x(x)
         angles_from_matrix = calc_ret_angles_from_matrix(calculated_T, calculated_F, ideal_axes)
-        print("calculated angles: ", angles_from_x, angles_from_matrix)
         print("other calculated angles:", calc_ret_angles_from_matrix(other_T, other_F, ideal_axes))
         print("angles from actual T and F", calc_ret_angles_from_matrix(actual_T, actual_F[0], ideal_axes))
         print(Hpol_det @ mueller(actual_F) @ mueller(rotation_nonideal_axes(ideal_axes, calc_ret_angles_from_matrix(actual_T, actual_F[0], ideal_axes), degrees=True)) @ mueller(actual_T))
-        print(Hpol_det @ mueller(actual_F) @ mueller(rotation_nonideal_axes(ideal_axes, angles_from_x, degrees=True)) @ mueller(actual_T))
 
         print(Hpol_det @ mueller(actual_F) @ mueller(rotation_nonideal_axes(ideal_axes, calc_ret_angles_from_matrix(other_T, other_F, ideal_axes), degrees=True)) @ mueller(actual_T))
 
