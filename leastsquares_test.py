@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 from scipy.spatial.transform import Rotation as r
 import random
-from leastsquares_fiberized import least_squares_fitting, calc_ret_angles_from_matrix, cost
+from leastsquares_fiberized import Fiberized, least_squares_fitting, calc_ret_angles_from_matrix, cost, calc_ret_angles_from_x
 from nonideal import rotation_nonideal_axes
 
 nonideal_axes = np.asarray([[[.999633], [.0038151], [-.0268291]],
@@ -89,6 +89,7 @@ def generate_expected_counts(rotation_list, sigma=0, axes=None):
 
     return generated_counts, actual_x, T, F
 
+
 class LeastSquaresTest(unittest.TestCase):
     error_threshold = 1e-5
 
@@ -98,38 +99,48 @@ class LeastSquaresTest(unittest.TestCase):
 
     # Testing calc_ret_angles_from_matrix -------------------------------------------------------------
 
-    def testP_reverse(self):
+    def testP_matrix_ideal(self):
         angles = calc_ret_angles_from_matrix(self.T, self.F[0], ideal_axes)
         P_matrix = rotation_nonideal_axes(ideal_axes, angles, degrees=True)
 
         transformation = Hpol_det @ mueller(self.F) @ mueller(P_matrix) @ mueller(self.T)
-        print("should be [0.5 0.5 0 0]: ", transformation)
+        # print("should be [0.5 0.5 0 0]: ", transformation)
 
         self.assertTrue(np.linalg.norm(Hpol_det - transformation) < LeastSquaresTest.error_threshold)
 
-    def testP_reverse_nonideal(self):
+    def testP_matrix_nonideal(self):
         angles = calc_ret_angles_from_matrix(self.T, self.F[0], nonideal_axes)
         P_matrix = rotation_nonideal_axes(nonideal_axes, angles, degrees=True)
 
         transformation = Hpol_det @ mueller(self.F) @ mueller(P_matrix) @ mueller(self.T)
-        print("should be [0.5 0.5 0 0]: ", transformation)
+        print("nonideal: should be [0.5 0.5 0 0]: ", transformation)
 
         self.assertTrue(np.linalg.norm(Hpol_det - transformation) < LeastSquaresTest.error_threshold)
 
-    def testT_reverse_nonideal(self):
+    def testP_old_matrix_nonideal(self):
         angles = calc_ret_angles_from_matrix(self.T, self.F[0], nonideal_axes)
+        P_matrix = rotation_nonideal_axes(nonideal_axes, angles, degrees=True)
 
+        transformation = Hpol_det @ mueller(self.F) @ mueller(P_matrix) @ mueller(self.T)
+        print("nonideal: should be [0.5 0.5 0 0]: ", transformation)
         P_210 = rotation_nonideal_axes(nonideal_axes[0:3], angles[0:3], degrees=True)
-        print("should be identity: ", self.T @ P_210)       # should be identity matrix
+        print("P210 @ T, should be identity: ", P_210 @ self.T)  # should be identity matrix
+        P_543 = rotation_nonideal_axes(nonideal_axes[3:6], angles[3:6], degrees=True)
+        print("Hpol_det @ F @ P543: ", Hpol_det @ mueller(self.F) @ mueller(P_543))
+        print("F @ P543: ", self.F @ P_543)
 
-        self.assertTrue(np.linalg.norm(self.T @ P_210 - np.identity(3)) < LeastSquaresTest.error_threshold)
+        self.assertTrue(np.linalg.norm(Hpol_det - transformation) < LeastSquaresTest.error_threshold)
+
+
 
     def test_fitting(self):
+        axes = nonideal_axes
         counts, actual_x, actual_T, actual_F = generate_expected_counts(rotations, sigma=.005)
-        result = least_squares_fitting(counts, rotations, axes=ideal_axes, verbose=True)
+
+        result = least_squares_fitting(counts, rotations, axes=axes, verbose=True)
 
         x = result.x
-        calculated_T = rotation_nonideal_axes(ideal_axes[0:3], x[0:3], degrees=True)
+        calculated_T = rotation_nonideal_axes(axes[0:3], x[0:3], degrees=True)
         calculated_F = np.asarray([np.cos(x[3]) * np.sin(x[4]), np.sin(x[3]) * np.sin(x[4]), np.cos(x[4])])
         other_T = np.copy(calculated_T)
         other_T[:, 0:2] = -calculated_T[:, 0:2]
@@ -140,14 +151,13 @@ class LeastSquaresTest(unittest.TestCase):
         print("First row of F: ", calculated_F)
         print("Result: ", x)
         print("Cost: ", result.cost)
-        print("cost of actual x", cost(actual_x, counts, rotations, ideal_axes))
-
-        angles_from_matrix = calc_ret_angles_from_matrix(calculated_T, calculated_F, ideal_axes)
-        print("other calculated angles:", calc_ret_angles_from_matrix(other_T, other_F, ideal_axes))
-        print("angles from actual T and F", calc_ret_angles_from_matrix(actual_T, actual_F[0], ideal_axes))
-        print(Hpol_det @ mueller(actual_F) @ mueller(rotation_nonideal_axes(ideal_axes, calc_ret_angles_from_matrix(actual_T, actual_F[0], ideal_axes), degrees=True)) @ mueller(actual_T))
-
-        print(Hpol_det @ mueller(actual_F) @ mueller(rotation_nonideal_axes(ideal_axes, calc_ret_angles_from_matrix(other_T, other_F, ideal_axes), degrees=True)) @ mueller(actual_T))
+        print("cost of actual x", cost(actual_x, counts, rotations, axes))
+        print("calculated angles: ", calc_ret_angles_from_matrix(calculated_T, calculated_F, axes))
+        print("other calculated angles:", calc_ret_angles_from_matrix(other_T, other_F, axes))
+        print("angles from actual T and F", calc_ret_angles_from_matrix(actual_T, actual_F[0], axes))
+        print(Hpol_det @ mueller(actual_F) @ mueller(rotation_nonideal_axes(axes, calc_ret_angles_from_matrix(actual_T, actual_F[0], axes), degrees=True)) @ mueller(actual_T))
+        print(Hpol_det @ mueller(actual_F) @ mueller(rotation_nonideal_axes(axes, calc_ret_angles_from_matrix(calculated_T, calculated_F, axes), degrees=True)) @ mueller(actual_T))
+        print(Hpol_det @ mueller(actual_F) @ mueller(rotation_nonideal_axes(axes, calc_ret_angles_from_matrix(other_T, other_F, axes), degrees=True)) @ mueller(actual_T))
 
 
 

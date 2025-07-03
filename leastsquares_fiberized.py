@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.spatial.transform import Rotation as r
 from scipy.optimize import least_squares, direct, minimize
-import random
+import random, time
 from measurements import measure_HD
 from nonideal import rotation_nonideal_axes, calculate_euler_angles
 from plot_fringe import plot, plot2
@@ -24,6 +24,8 @@ class Fiberized:
         (see https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.transform.Rotation.html)"""
         if rotation_list is None:
             rotation_list = r.random(16)
+
+        start_time = time.time()
         self.counts, angles = measure_HD(r.as_euler(rotation_list, "xyx", degrees=True), verbose=verbose)
 
         # Update the rotations based on the angles given back by the polarization analyzer
@@ -47,7 +49,10 @@ class Fiberized:
         self.other_T[:, 0:2] = -self.T[:, 0:2]
         self.other_F = -self.F
 
-        self.ret_angles = [calc_ret_angles_from_x(x), calc_ret_angles_from_matrix(self.other_T, self.other_F, Fiberized.axes)]
+        self.ret_angles = [calc_ret_angles_from_x(x, Fiberized.axes), calc_ret_angles_from_matrix(self.other_T, self.other_F, Fiberized.axes)]
+
+        end_time = time.time()
+        self.duration = end_time - start_time
 
     def print_results(self):
         """Prints the calculated T and F matrices, the count rates of the H and D states, the cost of the fitting,
@@ -57,6 +62,7 @@ class Fiberized:
         print("N_H, N_D: ", self.N_H, self.N_D)
         print("Cost: ", self.least_squares_result.cost)
         print("Retardance angles: \n", self.ret_angles[0], '\n', self.ret_angles[1])
+        print("Time taken (s): ", np.round(self.duration, 2))
 
     def plot_fringes(self, filepath=None, verbose=False):
         """Plots the fringes with compensation"""
@@ -117,7 +123,7 @@ def least_squares_fitting(count_data, rotation_list, axes=None, verbose=False):
     return fitting
 
 
-def calc_ret_angles_from_x(var):
+def calc_ret_angles_from_x(var, axes):
     """Returns the retardance angles (degrees) for the 6 wave plates to undo T and F, given the solution of the least-squares
     optimization."""
     ret_angles = np.zeros(6)
@@ -129,10 +135,7 @@ def calc_ret_angles_from_x(var):
     f_theta = var[3]
     f_phi = var[4]
     f_row1 = np.asarray([np.cos(f_theta) * np.sin(f_phi), np.sin(f_theta) * np.sin(f_phi), np.cos(f_phi)])
-    ret_angles[3] = 360 - np.arccos(f_row1[0]) * 180 / np.pi
-    ret_angles[4] = np.arccos(f_row1[2] / np.sqrt(f_row1[1] ** 2 + f_row1[2] ** 2)) * 180 / np.pi
-    if f_row1[1] > 0:
-        ret_angles[4] = 360 - ret_angles[4]
+    ret_angles[3:5] = calc_ret_angles_for_F(f_row1, axes)
 
     return ret_angles
 
@@ -144,21 +147,69 @@ def calc_ret_angles_from_matrix(T, F, axes):
     # We want the first 3 wave plates to emulate T inverse.
     # Since T is a rotation matrix, it is orthogonal, and its inverse is equal to its transpose.
     # TODO: Fix this. the axes are flipped
-    # ret_angles[0:3] = calculate_euler_angles(np.linalg.inv(T), axes[0:3], degrees=True, error_threshold=0.00001)
-    ret_angles[0:3] = -np.flip(calculate_euler_angles(T, axes[0:3], degrees=True, error_threshold=0.00001)) % 360
+    ret_angles[0:3] = calculate_euler_angles(np.linalg.inv(T), axes[0:3], degrees=True, error_threshold=1e-10)
+    # ret_angles[0:3] = -np.flip(calculate_euler_angles(T, axes[0:3], degrees=True, error_threshold=0.00001)) % 360
 
     # The 4th and 5th wave plates undo F
-    ret_angles[3] = 360 - np.arccos(F[0]) * 180 / np.pi
-    ret_angles[4] = np.arccos(F[2] / np.sqrt(F[1] ** 2 + F[2] ** 2)) * 180 / np.pi
-    if F[1] > 0:
-        ret_angles[4] = 360 - ret_angles[4]
+    ret_angles[3:5] = calc_ret_angles_for_F(F, axes)
 
     return ret_angles
+
+
+def calc_ret_angles_for_F(F, axes):
+    A = np.reshape(axes[3], 3)  # axis 3
+    B = np.reshape(axes[4], 3)  # axis 4
+    d = np.cross(A, B)
+    det = A[0] * B[1] - A[1] * B[0]
+    dot = np.dot(B, F)
+    x = (A[0] * B[1] - A[1] * dot) / det
+    y = (-A[0] * B[0] + A[0] * dot) / det
+
+    a = np.sum(np.square(d))
+    b = 2 * x * d[0] + 2 * y * d[1]
+    c = x ** 2 + y ** 2 - 1
+
+    t = [(-b + np.sqrt(b ** 2 - 4 * a * c)) / (2 * a), (-b - np.sqrt(b ** 2 - 4 * a * c)) / (2 * a)]
+
+    pt = np.array([x, y, 0])
+
+    # We have two possible points for f prime. We will choose the one with the positive z component
+    f_prime = pt + t[1] * d
+    if f_prime[2] < 0:
+        f_prime = pt + t[0] * d
+
+    point_B = dot * B / np.sum(np.square(B))
+
+    point_A = A[0] * A / np.sum(np.square(A))
+
+    theta4 = -np.arccos(np.dot(F - point_B, f_prime - point_B) / (
+                np.linalg.norm(F - point_B) * np.linalg.norm(f_prime - point_B))) * 180 / np.pi % 360
+
+    # Since we pick f_prime to have a pos z component, theta3 will always be in [180, 360]
+    theta3 = -np.arccos(np.dot(f_prime - point_A, np.array([1, 0, 0]) - point_A) / (
+                np.linalg.norm(f_prime - point_A) * np.linalg.norm(np.array([1, 0, 0]) - point_A))) * 180 / np.pi % 360
+
+    # get the complement of theta4 if necessary
+    y_comp = (F - point_B) - (np.dot(f_prime - point_B, F) / np.dot(f_prime - point_B, f_prime - point_B)) * (
+                f_prime - point_B)
+    if y_comp[1] < 0:
+        theta4 = 360 - theta4
+
+    return [theta3, theta4]
+
+
+def old_calc_ret_angles_for_F(F):
+    theta3 = 360 - np.arccos(F[0]) * 180 / np.pi
+    theta4 = np.arccos(F[2] / np.sqrt(F[1] ** 2 + F[2] ** 2)) * 180 / np.pi
+    if F[1] > 0:
+        theta4 = 360 - theta4
+
+    return [theta3, theta4]
 
 
 if __name__ == "__main__":
     A = Fiberized(verbose=False)
     A.print_results()
-    # plot(title='No Compensation', filepath='plots/jun30_nocompensation.png')
-    A.plot_fringes(filepath='plots/jun30_1.png', verbose=True)
+    # plot(title='No Compensation', filepath='plots/jul3_nocompensation.png', verbose=True)
+    A.plot_fringes(filepath='plots/jul3_2.png', verbose=False)
 
