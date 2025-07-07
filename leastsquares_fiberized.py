@@ -49,7 +49,7 @@ class Fiberized:
         self.other_T[:, 0:2] = -self.T[:, 0:2]
         self.other_F = -self.F
 
-        self.ret_angles = [calc_ret_angles_from_x(x, Fiberized.axes), calc_ret_angles_from_matrix(self.other_T, self.other_F, Fiberized.axes)]
+        self.ret_angles = [calc_ret_angles_from_matrix(self.T, self.F, Fiberized.axes), calc_ret_angles_from_matrix(self.other_T, self.other_F, Fiberized.axes)]
 
         end_time = time.time()
         self.duration = end_time - start_time
@@ -131,7 +131,6 @@ def calc_ret_angles_from_x(var, axes):
     # TODO: Fix this?? not always true, no?
     ret_angles[0:3] = -np.flip(var[0:3]) % 360
 
-    # TODO: figure out angles for F given non-ideal axes of rotation
     f_theta = var[3]
     f_phi = var[4]
     f_row1 = np.asarray([np.cos(f_theta) * np.sin(f_phi), np.sin(f_theta) * np.sin(f_phi), np.cos(f_phi)])
@@ -208,8 +207,8 @@ def old_calc_ret_angles_for_F(F):
 
 
 if __name__ == "__main__":
-    A = Fiberized(verbose=False)
+    A = Fiberized(rotation_list=r.random(8), verbose=False)
     A.print_results()
-    # plot(title='No Compensation', filepath='plots/jul3_nocompensation.png', verbose=True)
-    A.plot_fringes(filepath='plots/jul3_2.png', verbose=False)
+    A.plot_fringes(filepath='plots/jul7_.png', verbose=False)
+    plot(title='No Compensation', filepath='plots/jul7_nocompensation.png', verbose=True)
 

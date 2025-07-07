@@ -1,7 +1,3 @@
-"""
-Created on Fri May 23 12:18:15 2025
-"""
-
 import numpy as np
 import numpy.typing as npt
 from scipy.spatial.transform import Rotation as r
@@ -52,9 +48,9 @@ def rotation_nonideal_axes(axes: npt.NDArray, rot_angles: npt.ArrayLike, degrees
     return r.as_matrix(rotation)    # TODO: change return type to scipy rotation?
 
 
-def calculate_euler_angles(M_goal, axes, error_threshold=.01, verbose=False, degrees=False):
+def calculate_euler_angles(M_goal, axes, error_threshold=.000001, verbose=False, degrees=False):
     """Returns the retardance angles (in radians) needed to achieve rotation matrix M_goal
-    given non-ideal axes of rotation (should be 3 axes to represent HDH)"""
+    given non-ideal axes of rotation (should be 3 axes to represent HDH). Based on Nucrypt pa1000_math_docver2.docx"""
     # trim M_goal if needed
     if M_goal.shape == (4, 4):
         M_goal = np.delete(M_goal, 0, 0)
@@ -63,24 +59,29 @@ def calculate_euler_angles(M_goal, axes, error_threshold=.01, verbose=False, deg
 
     # initial guess with the ideal case
     # use "xyx" for HDH; "yxy" for DHD
-    P = r.as_euler(R_goal, "xyx", degrees=degrees)
-    prev_error = 1e20
+    P = r.as_euler(R_goal, "xyx")
+    error = 1e20
 
-    for i in range(10):
-        M_est = rotation_nonideal_axes(axes, P, degrees=degrees)
+    for i in range(100):
+        M_est = rotation_nonideal_axes(axes, P)
+        prev_error = error
         error = np.linalg.norm(M_est - M_goal)
-
         if verbose:
             print("Error: ", error)
+            print("Angles (deg): ", P*180/np.pi)
 
         if error < error_threshold:
             if verbose:
                 print("Error threshold reached")
                 print(M_goal - M_est)
+            if degrees:
+                return P * 180 / np.pi % 360
             return P
         if error >= prev_error:
             if verbose:
                 print("Error Diverging")
+            if degrees:
+                return P * 180 / np.pi % 360
             return P
 
         # Compute the 9x3 Jacobian
@@ -97,6 +98,8 @@ def calculate_euler_angles(M_goal, axes, error_threshold=.01, verbose=False, deg
         if np.linalg.det(JTJ) == 0:
             # JTJ is not invertible. This means that there is not one unique solution, but multiple. We choose to hold
             # the third waveplate still, and just change the first one.
+            if verbose:
+                print("Gimbal Lock")
             J = np.delete(J, 2, axis=1)
 
         # M_est + J @ delta P = M_goal
@@ -106,6 +109,8 @@ def calculate_euler_angles(M_goal, axes, error_threshold=.01, verbose=False, deg
 
         P = P + np.reshape(delta_P, 3)
 
+    if degrees:
+        return P * 180 / np.pi % 360
     return P
 
 
@@ -118,7 +123,7 @@ if __name__ == "__main__":
                                 [[.997268], [-0.0702493], [0.0228234]],
                                 [[-0.00005461419], [.999687], [-0.0250044]]])
 
-    angles = calculate_euler_angles(T, nonideal_axes[0:3])
+    angles = calculate_euler_angles(T, nonideal_axes[0:3], verbose=True)
     print("Angles (rad): ", angles)
 
     print(T)
