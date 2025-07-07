@@ -22,7 +22,7 @@ def r2x(v):
 
 
 def rot(axis, theta):
-    """Returns a rotation matrix that rotates theta around axis"""
+    """Returns a rotation matrix that rotates theta (radians) around axis"""
     rot_vec = np.resize(axis * theta / np.linalg.norm(axis), 3)
     return r.as_matrix(r.from_rotvec(rot_vec))
 

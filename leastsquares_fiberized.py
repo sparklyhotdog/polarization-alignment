@@ -8,7 +8,7 @@ from plot_fringe import plot, plot2
 
 
 class Fiberized:
-    # 6 axes of rotation of each of the H-D-H-D-H-D waveplates in the Nucrypt PA (taken from the flash of the PA)
+    # The 6 axes of rotation for the H-D-H-D-H-D variable retarders in the Nucrypt PA (taken from the flash of the PA)
     axes = np.asarray([[[.999633], [.0038151], [-.0268291]],
                       [[.0271085], [.999295], [.0259618]],
                       [[.9994289], [-.0335444], [.004005751]],
@@ -28,7 +28,7 @@ class Fiberized:
         start_time = time.time()
         self.counts, angles = measure_HD(r.as_euler(rotation_list, "xyx", degrees=True), verbose=verbose)
 
-        # Update the rotations based on the angles given back by the polarization analyzer
+        # Update the rotation list based on the angles given back by the polarization analyzer
         self.rotations = r.identity(len(rotation_list))
         for i in range(len(rotation_list)):
             self.rotations[i] = r.from_matrix(rotation_nonideal_axes(Fiberized.axes, angles[i], degrees=True))
@@ -45,6 +45,7 @@ class Fiberized:
         self.N_H = x[5]
         self.N_D = x[6]
 
+        # TODO: find the exact value of this? prob not exact because of nonideal axes
         self.other_T = np.copy(self.T)
         self.other_T[:, 0:2] = -self.T[:, 0:2]
         self.other_F = -self.F
@@ -113,7 +114,7 @@ def least_squares_fitting(count_data, rotation_list, axes=None, verbose=False):
     max_C_D = max(counts_reorganized[1])
     bounds = ([0, 0, 0, 0, 0, max_C_H, max_C_D], [360, 180, 360, 2 * np.pi, np.pi, np.inf, np.inf])
     bounds_direct = [(0, 360), (0, 180), (0, 360), (0, 2 * np.pi), (0, np.pi), (max_C_H, 1.5 * max_C_H),
-                     (max_C_D, 1.5 * max_C_D)]      # the direct method used a different bounds formatting
+                     (max_C_D, 1.5 * max_C_D)]      # the direct method uses a different bounds formatting
 
     # first calculate an initial guess using a global optimization algorithm
     initial_result = direct(cost, bounds_direct, args=(count_data, rotation_list, axes))
@@ -123,39 +124,27 @@ def least_squares_fitting(count_data, rotation_list, axes=None, verbose=False):
     return fitting
 
 
-def calc_ret_angles_from_x(var, axes):
-    """Returns the retardance angles (degrees) for the 6 wave plates to undo T and F, given the solution of the least-squares
-    optimization."""
-    ret_angles = np.zeros(6)
-
-    # TODO: Fix this?? not always true, no?
-    ret_angles[0:3] = -np.flip(var[0:3]) % 360
-
-    f_theta = var[3]
-    f_phi = var[4]
-    f_row1 = np.asarray([np.cos(f_theta) * np.sin(f_phi), np.sin(f_theta) * np.sin(f_phi), np.cos(f_phi)])
-    ret_angles[3:5] = calc_ret_angles_for_F(f_row1, axes)
-
-    return ret_angles
-
-
 def calc_ret_angles_from_matrix(T, F, axes):
-    """Returns the retardance angles (degrees) for the 6 wave plates to undo T and F, given the 3x3 rotation matrix T
-    and the first row of the matrix F"""
+    """Returns the retardance angles (degrees) for the 6 variable retarders to undo T and F,
+    given the 3x3 rotation matrix T, the first row of the matrix F, and the axes of rotation"""
     ret_angles = np.zeros(6)
-    # We want the first 3 wave plates to emulate T inverse.
+    # We want the first 3 variable retarders to emulate T inverse.
     # Since T is a rotation matrix, it is orthogonal, and its inverse is equal to its transpose.
-    # TODO: Fix this. the axes are flipped
     ret_angles[0:3] = calculate_euler_angles(np.linalg.inv(T), axes[0:3], degrees=True, error_threshold=1e-10)
-    # ret_angles[0:3] = -np.flip(calculate_euler_angles(T, axes[0:3], degrees=True, error_threshold=0.00001)) % 360
 
-    # The 4th and 5th wave plates undo F
+    # The 4th and 5th variable retarders undo F
     ret_angles[3:5] = calc_ret_angles_for_F(F, axes)
 
     return ret_angles
 
 
 def calc_ret_angles_for_F(F, axes):
+    """Returns the angles (degrees) to set the last 3 variable retarders in order to reverse the F transformation,
+    given the first row of F (an array length 3), and the rotation axes (a 6x3 array, column vectors are fine).
+
+    The output is [theta3, theta4], where theta3 is the angle to set the fourth variable retarder,
+    theta4 is the angle to set the fifth variable retarder (indexing starting at 0),
+    and the last variable retarder is set to 0."""
     A = np.reshape(axes[3], 3)  # axis 3
     B = np.reshape(axes[4], 3)  # axis 4
     d = np.cross(A, B)
@@ -172,7 +161,8 @@ def calc_ret_angles_for_F(F, axes):
 
     pt = np.array([x, y, 0])
 
-    # We have two possible points for f prime. We will choose the one with the positive z component
+    # We have two possible points for f prime. We will choose the one with the positive z component.
+    # (This part assumes that we have D-H-D aligned retarders for the last 3)
     f_prime = pt + t[1] * d
     if f_prime[2] < 0:
         f_prime = pt + t[0] * d
@@ -188,7 +178,7 @@ def calc_ret_angles_for_F(F, axes):
     theta3 = -np.arccos(np.dot(f_prime - point_A, np.array([1, 0, 0]) - point_A) / (
                 np.linalg.norm(f_prime - point_A) * np.linalg.norm(np.array([1, 0, 0]) - point_A))) * 180 / np.pi % 360
 
-    # get the complement of theta4 if necessary
+    # Get the complement of theta4 if necessary
     y_comp = (F - point_B) - (np.dot(f_prime - point_B, F) / np.dot(f_prime - point_B, f_prime - point_B)) * (
                 f_prime - point_B)
     if y_comp[1] < 0:
@@ -197,18 +187,9 @@ def calc_ret_angles_for_F(F, axes):
     return [theta3, theta4]
 
 
-def old_calc_ret_angles_for_F(F):
-    theta3 = 360 - np.arccos(F[0]) * 180 / np.pi
-    theta4 = np.arccos(F[2] / np.sqrt(F[1] ** 2 + F[2] ** 2)) * 180 / np.pi
-    if F[1] > 0:
-        theta4 = 360 - theta4
-
-    return [theta3, theta4]
-
-
 if __name__ == "__main__":
     A = Fiberized(rotation_list=r.random(8), verbose=False)
     A.print_results()
-    A.plot_fringes(filepath='plots/jul7_.png', verbose=False)
-    plot(title='No Compensation', filepath='plots/jul7_nocompensation.png', verbose=True)
+    A.plot_fringes(filepath='plots/jul7_1.png', verbose=False)
+    plot(title='No Compensation', filepath='plots/jul7_1nocompensation.png', verbose=True)
 
