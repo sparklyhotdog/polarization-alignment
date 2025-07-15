@@ -9,12 +9,12 @@ from plot_fringe import plot, plot2
 
 class Fiberized:
     # The 6 axes of rotation for the H-D-H-D-H-D variable retarders in the Nucrypt PA (taken from the flash of the PA)
-    axes = np.asarray([[[.999633], [.0038151], [-.0268291]],
-                      [[.0271085], [.999295], [.0259618]],
-                      [[.9994289], [-.0335444], [.004005751]],
-                      [[0], [1], [0]],
-                      [[.997268], [-0.0702493], [0.0228234]],
-                      [[-0.00005461419], [.999687], [-0.0250044]]])
+    axes = np.asarray([[.999633, .0038151, -.0268291],
+                      [.0271085, .999295, .0259618],
+                      [.9994289, -.0335444, .004005751],
+                      [0, 1, 0],
+                      [.997268, -0.0702493, 0.0228234],
+                      [-0.00005461419, .999687, -0.0250044]])
 
     def __init__(self, rotation_list=None, verbose=True):
         """ Performs the "one-shot" alignment and calculates the T and F matrices, and the retardance angles to set to
@@ -65,10 +65,20 @@ class Fiberized:
         print("Retardance angles: \n", self.ret_angles[0], '\n', self.ret_angles[1])
         print("Time taken (s): ", np.round(self.duration, 2))
 
-    def plot_fringes(self, filepath=None, verbose=False):
+    def plot_fringes(self, filepath=None, verbose=False, num_points=10):
         """Plots the fringes with compensation"""
         angles_str = str(np.round(self.ret_angles[0], 2)) + '\n' + str(np.round(self.ret_angles[1], 2))
-        plot2(ret_angles=self.ret_angles, title=angles_str, filepath=filepath, verbose=verbose)
+        plot2(ret_angles=self.ret_angles, title=angles_str, filepath=filepath, verbose=verbose, num_points=num_points)
+
+    def plot_fringe(self, filepath=None, verbose=False, num_points=10):
+        """Plots the fringes with compensation"""
+        title = "With compensation\n" + str(np.round(self.ret_angles[0], 2))
+        plot(ret_angles=self.ret_angles[0], title=title, filepath=filepath, verbose=verbose, num_points=num_points)
+
+    def plot_fringe_other(self, filepath=None, verbose=False, num_points=10):
+        """Plots the fringes with compensation"""
+        title = "With compensation \n" + str(np.round(self.ret_angles[0], 2))
+        plot(ret_angles=self.ret_angles[1], title=title, filepath=filepath, verbose=verbose, num_points=num_points)
 
 
 def residuals(var, count_data, rotation_list, axes=None):
@@ -188,8 +198,8 @@ def calc_ret_angles_for_F(F, axes):
 
 
 if __name__ == "__main__":
-    A = Fiberized(rotation_list=r.random(8), verbose=False)
+    A = Fiberized(rotation_list=r.random(16), verbose=False)
     A.print_results()
-    A.plot_fringes(filepath='plots/jul7_1.png', verbose=False)
-    plot(title='No Compensation', filepath='plots/jul7_1nocompensation.png', verbose=True)
+    A.plot_fringe(filepath='plots/jul11_2.png', verbose=False, num_points=15)
+    plot(title='No compensation\n[0, 0, 0, 0, 0, 0]', filepath='plots/jul11_2nocompensation.png', verbose=True, num_points=15)
 

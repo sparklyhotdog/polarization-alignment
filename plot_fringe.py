@@ -16,15 +16,16 @@ def plot(ret_angles=None, num_points=10, title=None, filepath=None, verbose=Fals
     bases = ['H', 'V', 'D', 'A', 'R', 'L']
 
     x = np.linspace(0, 360, num_points)
-    x_radians = x * np.pi / 180
 
-    readings = measure_for_plot(ret_angles, verbose=verbose)
+    readings = measure_for_plot(ret_angles, verbose=verbose, num_points=num_points)
 
     fig, ax = plt.subplots()
     for i in range(6):
         ax.plot(x, readings[i], label=bases[i])
 
-    ax.set(xlabel='Theta for Waveplate 4 (deg)', ylabel='Power (mW)', title=title)
+    plt.xlabel('Theta Offset for Waveplate 4 (deg)', fontsize='x-large')
+    plt.ylabel('Power (mW)', fontsize='x-large')
+    plt.title(title, fontsize='xx-large')
     legend = plt.legend()
     ax.grid()
     if filepath is not None:
@@ -56,8 +57,8 @@ def plot2(ret_angles=None, num_points=10, title=None, filepath=None, verbose=Fal
     for i in range(6):
         plt.plot(x, readings0[i], label=bases[i])
 
-    plt.ylabel('Power (mW)')
-    plt.title(title)
+    plt.ylabel('Power (mW)', fontsize='x-large')
+    plt.title(title, fontsize='xx-large')
     plt.legend()
     plt.grid()
 
@@ -66,8 +67,8 @@ def plot2(ret_angles=None, num_points=10, title=None, filepath=None, verbose=Fal
     for i in range(6):
         plt.plot(x, readings1[i], label=bases[i])
 
-    plt.xlabel('Theta Offset for Waveplate 4 (deg)')
-    plt.ylabel('Power (mW)')
+    plt.xlabel('Theta Offset for Waveplate 4 (deg)', fontsize='x-large')
+    plt.ylabel('Power (mW)', fontsize='x-large')
     plt.legend()
     plt.grid()
     if filepath is not None:
@@ -75,9 +76,43 @@ def plot2(ret_angles=None, num_points=10, title=None, filepath=None, verbose=Fal
     plt.show()
 
 
-if __name__ == "__main__":
-    P = np.zeros(6)
+def plot_expected(filepath=None):
+    """"""
 
-    print("Offsets for the waveplates: ", P)
-    plot(P, title=str(P), filepath='plots/jun30_nocompensation.png', verbose=True)
+    bases = ['H', 'V', 'D', 'A', 'R', 'L']
+    num_points = 100
+    x = np.linspace(0, 360, num_points)
+    theta = x * np.pi / 180
+    counts = 1
+
+    readings = [
+        0.5 * counts * (1 + np.cos(theta)),
+        0.5 * counts * (1 - np.cos(theta)),
+        0.5 * counts * np.ones(num_points),
+        0.5 * counts * np.ones(num_points),
+        0.5 * counts * (1 + np.sin(theta)),
+        0.5 * counts * (1 - np.sin(theta)),
+    ]
+
+    fig, ax = plt.subplots()
+    for i in range(6):
+        ax.plot(x, readings[i], label=bases[i])
+
+    ax.set_ylabel(ylabel='Fraction of max power', fontsize='x-large')
+    ax.set_title(label='Expected', fontsize='xx-large')
+    ax.set_xlabel(xlabel='Theta for Waveplate 4 (deg)', fontsize='x-large')
+    legend = plt.legend()
+    ax.grid()
+    if filepath is not None:
+        plt.savefig(filepath)
+
+    plt.show()
+
+
+if __name__ == "__main__":
+    # P = np.zeros(6)
+    #
+    # print("Offsets for the waveplates: ", P)
+    # plot(P, title=str(P), filepath='plots/jun30_nocompensation.png', verbose=True)
+    plot_expected(filepath='plots/expected.png')
 
