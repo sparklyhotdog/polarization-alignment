@@ -2,7 +2,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation as r
 from scipy.optimize import least_squares, direct, minimize
 import random, time
-from measurements import measure_HD
+from measurements import measure_HD, measure_HD_fast
 from nonideal import rotation_nonideal_axes, calculate_euler_angles
 from plot_fringe import plot, plot2
 
@@ -17,26 +17,32 @@ class Fiberized:
                       [-0.00005461419, .999687, -0.0250044]])
 
     def __init__(self, rotation_list=None, verbose=True):
-        """ Performs the "one-shot" alignment and calculates the T and F matrices, and the retardance angles to set to
-        reverse them.
+        """ Performs the reference frame alignment and calculates the T and F matrices,
+        as well as the retardance angles to set to reverse them.
 
         rotation_list, if specified, should be a scipy rotation object containing multiple rotations.
-        (see https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.transform.Rotation.html)"""
-        if rotation_list is None:
-            rotation_list = r.random(16)
+        (see https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.transform.Rotation.html)
+
+        verbose, if true, will print each message sent and received by the polarization analyzer"""
 
         start_time = time.time()
-        self.counts, angles = measure_HD(r.as_euler(rotation_list, "xyx", degrees=True), verbose=verbose)
+        if rotation_list is not None:
+            self.counts, angles = measure_HD(r.as_euler(rotation_list, "xyx", degrees=True), verbose=verbose)
+            num_rots = len(rotation_list)
+        else:
+            self.counts, angles = measure_HD_fast(num_rots=16, verbose=verbose)
+            num_rots = 16
 
         # Update the rotation list based on the angles given back by the polarization analyzer
-        self.rotations = r.identity(len(rotation_list))
-        for i in range(len(rotation_list)):
+        self.rotations = r.identity(num_rots)
+        for i in range(num_rots):
             self.rotations[i] = r.from_matrix(rotation_nonideal_axes(Fiberized.axes, angles[i], degrees=True))
 
         # The least squares solves for x [theta1, theta2, theta3, theta, phi, N_H, N_D], where
         # theta1, theta2, theta3 [0, 360] are the angles around the rotation axes (degrees),
         # theta [0, 2pi] and phi [0, pi] are the spherical angles for the first row of the F matrix (radians),
         # and N_H and N_D are the count rates for the H and D states (mW)
+        leastsquares_start = time.time()
         self.least_squares_result = least_squares_fitting(self.counts, self.rotations, axes=Fiberized.axes)
         x = self.least_squares_result.x
 
@@ -50,35 +56,51 @@ class Fiberized:
         self.other_T[:, 0:2] = -self.T[:, 0:2]
         self.other_F = -self.F
 
-        self.ret_angles = [calc_ret_angles_from_matrix(self.T, self.F, Fiberized.axes), calc_ret_angles_from_matrix(self.other_T, self.other_F, Fiberized.axes)]
+        self.ret_angles = calc_ret_angles_from_matrix(self.T, self.F, Fiberized.axes)
+        self.other_ret_angles = calc_ret_angles_from_matrix(self.other_T, self.other_F, Fiberized.axes)
+
+        # Assuming that F does not change and the correct ret angles are close to 380 160
+        if (self.ret_angles[3] - 280)**2 + (self.ret_angles[4] - 160)**2 > (self.other_ret_angles[3] - 280)**2 + (self.other_ret_angles[4] - 160)**2:
+            # The correct one is the second one and we switch
+            tempT = self.other_T
+            tempF = self.other_F
+            temp_ret_angles = self.other_ret_angles
+            self.other_T = self.T
+            self.other_F = self.F
+            self.other_ret_angles = self.ret_angles
+            self.T = tempT
+            self.F = tempF
+            self.ret_angles = temp_ret_angles
 
         end_time = time.time()
         self.duration = end_time - start_time
+        self.calc_time = end_time - leastsquares_start
 
     def print_results(self):
         """Prints the calculated T and F matrices, the count rates of the H and D states, the cost of the fitting,
-        and the calculated retardance angles to reverse T and F"""
+        the calculated retardance angles to reverse T and F, and the time it took"""
         print("Calculated T: \n", self.T)
         print("Calculated first row of F: \n", self.F)
         print("N_H, N_D: ", self.N_H, self.N_D)
         print("Cost: ", self.least_squares_result.cost)
-        print("Retardance angles: \n", self.ret_angles[0], '\n', self.ret_angles[1])
-        print("Time taken (s): ", np.round(self.duration, 2))
+        print("Retardance angles: \n", self.ret_angles, '\n', self.other_ret_angles)
+        print("Total time taken (s): ", np.round(self.duration, 2))
+        print("Calculation time (s): ", np.round(self.calc_time, 2))
 
     def plot_fringes(self, filepath=None, verbose=False, num_points=10):
-        """Plots the fringes with compensation"""
-        angles_str = str(np.round(self.ret_angles[0], 2)) + '\n' + str(np.round(self.ret_angles[1], 2))
-        plot2(ret_angles=self.ret_angles, title=angles_str, filepath=filepath, verbose=verbose, num_points=num_points)
+        """Plots the fringes with compensation--both T and the other T in subplots."""
+        angles_str = str(np.round(self.ret_angles, 2)) + '\n' + str(np.round(self.other_ret_angles, 2))
+        plot2(ret_angles=[self.ret_angles, self.other_ret_angles], title=angles_str, filepath=filepath, verbose=verbose, num_points=num_points)
 
     def plot_fringe(self, filepath=None, verbose=False, num_points=10):
-        """Plots the fringes with compensation"""
-        title = "With compensation\n" + str(np.round(self.ret_angles[0], 2))
-        plot(ret_angles=self.ret_angles[0], title=title, filepath=filepath, verbose=verbose, num_points=num_points)
+        """Plots the fringes with compensation (from the calculated T and F)"""
+        title = "With compensation\n" + str(np.round(self.ret_angles, 2))
+        plot(ret_angles=self.ret_angles, title=title, filepath=filepath, verbose=verbose, num_points=num_points)
 
     def plot_fringe_other(self, filepath=None, verbose=False, num_points=10):
-        """Plots the fringes with compensation"""
-        title = "With compensation \n" + str(np.round(self.ret_angles[0], 2))
-        plot(ret_angles=self.ret_angles[1], title=title, filepath=filepath, verbose=verbose, num_points=num_points)
+        """Plots the fringes with compensation (from the other T and F)"""
+        title = "With compensation \n" + str(np.round(self.ret_angles, 2))
+        plot(ret_angles=self.other_ret_angles, title=title, filepath=filepath, verbose=verbose, num_points=num_points)
 
 
 def residuals(var, count_data, rotation_list, axes=None):
@@ -198,8 +220,11 @@ def calc_ret_angles_for_F(F, axes):
 
 
 if __name__ == "__main__":
-    A = Fiberized(rotation_list=r.random(16), verbose=False)
+    A = Fiberized(verbose=False)
+    # A = Fiberized(rotation_list=r.random(16), verbose=False)
     A.print_results()
-    A.plot_fringe(filepath='plots/jul11_2.png', verbose=False, num_points=15)
-    plot(title='No compensation\n[0, 0, 0, 0, 0, 0]', filepath='plots/jul11_2nocompensation.png', verbose=True, num_points=15)
+    # choose angle set that is closest to 280 160 for F
+    path = 'plots/jul15_10r_.png'
+    A.plot_fringe(filepath=path, verbose=False, num_points=10)
+    # plot(title='No compensation\n[0, 0, 0, 0, 0, 0]', filepath='plots/jul15_nocompensation.png', verbose=True, num_points=15)
 
