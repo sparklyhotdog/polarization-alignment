@@ -1,14 +1,14 @@
 # Polarization reference frame alignment using the inverse-matrix method
 
-a few scripts to calculate an unknown transformation matrix of a fiber, as well as the retardance angles to set in order to reverse it.
+a few scripts to calculate an unknown fiber rotation, as well as the retardance angles to set the polarization controller in order to reverse it.
 
-## Code Organization
-* **servoinfo.yaml** contains the host ip and port information of the 3 servers for the Nucrypt Polarization Analyzer (PA1000), GP Polarization Synthesizer (PSY201), and the ThorLabs powermeter (PM400).
-* **leastsquares_fiberized.py** contains the `Fiberized` class, which performs the alignment upon initialization and computes the matrix T, the first row of F, and the retardance angles to set in order to compensate for these.
-* **client.py** contains the `Client` class for interacting with the 3 servers.
-* **measurements.py** contains a few functions for getting measurements for alignment and also plotting
-* **nonideal.py** implements the Newton's method to find the retardance angles with nonideal axes for an arbitrary rotation matrix (outlined by the Nucrypt mathdoc). Also contains some useful functions to calculate the rotation matrix given retardance angles and axes of rotations.
-* **plot_fringe.py** contains plotting scripts for polarization correlation fringes
+## Setup
+
+The Polarization Synthesizer creates the reference states (H and D). T is the fiber with the unknown transformation. We use the Nucrypt Polarization Analyzer (6 variable retarders) to perform a series of measurements in different bases.
+Inside the PA, there is a second fiber with unknown transformation F. We also solve for F in our least squares fitting. F doesn't change that much since it is inside the device. As of July 2025, F can be compensated with the last 3 variable retarders set to around [280, 160, 0] (degrees).
+
+![image info](docs/setup.svg)
+
 
 ## Usage
 
@@ -17,6 +17,7 @@ from leastsquares_fiberized import Fiberized
 from scipy.spatial.transform import Rotation as r
 
 # Create a Fiberized object with 16 random rotations
+# It performs the alignment upon initialization
 A = Fiberized(rotation_list=r.random(16), verbose=False)
 A.print_results()
 
@@ -52,5 +53,14 @@ disconnected
 disconnected
 ```
 
-![image info](plots/jun30_.png)
-## 
+![image info](docs/jul15_nocompensation.png)
+![image info](docs/jul15_8_rand4.png)
+
+## Code Organization
+* **servoinfo.yaml** contains the host ip and port information of the 3 servers for the Nucrypt Polarization Analyzer (PA1000), Polarization Synthesizer (PSY201), and the powermeter (PM400).
+* **leastsquares_fiberized.py** contains the `Fiberized` class, which performs the alignment upon initialization and computes the matrix T, the first row of F, and the retardance angles to set in order to compensate for these.
+* **plot_fringe.py** contains plotting scripts for polarization correlation fringes
+* **client.py** contains the `Client` class for interacting with the 3 servers.
+* **measurements.py** contains a few functions for getting measurements for alignment and also plotting
+* **nonideal.py** implements the Newton's method to find the retardance angles with nonideal axes for an arbitrary rotation matrix (outlined by the Nucrypt mathdoc). Also contains some useful functions to calculate the rotation matrix given retardance angles and axes of rotations.
+
