@@ -54,7 +54,7 @@ disconnected
 ```
 
 ![image info](docs/jul15_nocompensation.png)
-![image info](docs/jul15_8_rand4.png)
+![image info](docs/jul15_8_rand5.png)
 
 ## Code Organization
 * **servoinfo.yaml** contains the host ip and port information of the 3 servers for the Nucrypt Polarization Analyzer (PA1000), Polarization Synthesizer (PSY201), and the powermeter (PM400).
