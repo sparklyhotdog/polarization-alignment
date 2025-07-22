@@ -4,20 +4,20 @@ a few scripts to calculate an unknown fiber rotation, as well as the retardance 
 
 ## Setup
 
-The Polarization Synthesizer creates the reference states (H and D). T is the fiber with the unknown transformation. We use the Nucrypt Polarization Analyzer (6 variable retarders) to perform a series of measurements in different bases.
-Inside the PA, there is a second fiber with unknown transformation F. We also solve for F in our least squares fitting. F doesn't change that much since it is inside the device. As of July 2025, F can be compensated with the last 3 variable retarders set to around [280, 160, 0] (degrees).
+The Polarization Synthesizer creates the reference states (H and D). T is the fiber with the unknown transformation. We use the Nucrypt Polarization Analyzer (6 variable retarders) and a powermeter to perform a series of measurements in different bases. The server information for these 3 devices are stored in [serverinfo.yaml](serverinfo.yaml).
+
+Inside the PA, there is a second fiber with unknown transformation F. We also solve for F in our least squares fitting. F doesn't change that much since it is inside the device. As of July 2025, F can be compensated with the last 3 variable retarders set around [280, 160, 0] (degrees).
 
 ![image info](docs/setup.svg)
 
 
 ## Usage
-
+Creating a `Fiberized` object performs the alignment routine upon initialization.  
 ```python
 from leastsquares_fiberized import Fiberized
 from scipy.spatial.transform import Rotation as r
 
 # Create a Fiberized object with 16 random rotations
-# It performs the alignment upon initialization
 A = Fiberized(rotation_list=r.random(16), verbose=False)
 A.print_results()
 
@@ -31,30 +31,29 @@ plot(title='No compensation\n[0, 0, 0, 0, 0, 0]', filepath='plots/nocompensation
 Sample output:
 ```text
 Calculated T: 
- [[-0.8919294  -0.08238449 -0.44460628]
- [ 0.02132279  0.9745052  -0.2233494 ]
- [ 0.45167166 -0.20869214 -0.86743317]]
+ [[-0.88310004 -0.00944535 -0.46908965]
+ [ 0.13319058  0.95361972 -0.26994388]
+ [ 0.44988285 -0.30086577 -0.84088359]]
 Calculated first row of F: 
- [ 0.23024226 -0.38612544 -0.89325005]
-N_H, N_D:  0.8437189594026265 0.852531249534866
-Cost:  0.0016725880514390761
+ [ 0.23774342 -0.40017692 -0.88506299]
+N_H, N_D:  0.8491590000000001 0.8545297461911898
+Cost:  0.00034216531438878195
 Retardance angles: 
- [357.5693709  152.67964747 341.3817251  282.39477496 158.57110576
+ [ 12.30968684 151.80568097 351.77016781 282.90701227 157.69243608
    0.        ] 
- [184.9934743   24.07161166   7.45227289 254.98314901 336.60805907
+ [199.27325956  24.95938699 357.47812842 254.4709117  335.65299484
    0.        ]
-Total time taken (s):  38.86
-Calculation time (s):  1.52
-disconnected
-disconnected
-disconnected
+Total time taken (s):  11.17
+Calculation time (s):  0.77
 disconnected
 disconnected
 disconnected
 ```
-
-![image info](docs/jul15_nocompensation.png)
-![image info](docs/jul15_8_rand5.png)
+<p align="center">
+  <img alt="Without compensation" src="docs/jul17_nocompensation1.png" width="45%">
+&nbsp; &nbsp; &nbsp; &nbsp;
+  <img alt="With compensation" src="docs/jul17_10r_1.png" width="45%">
+</p>
 
 ## Code Organization
 * **servoinfo.yaml** contains the host ip and port information of the 3 servers for the Nucrypt Polarization Analyzer (PA1000), Polarization Synthesizer (PSY201), and the powermeter (PM400).

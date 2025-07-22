@@ -8,7 +8,8 @@ from plot_fringe import plot, plot2
 
 
 class Fiberized:
-    # The 6 axes of rotation for the H-D-H-D-H-D variable retarders in the Nucrypt PA (taken from the flash of the PA)
+    # The 6 axes of rotation for the H-D-H-D-H-D variable retarders in the Nucrypt PA (taken from the flash of the PA).
+    # The 4th variable retarder is the reference
     axes = np.asarray([[.999633, .0038151, -.0268291],
                       [.0271085, .999295, .0259618],
                       [.9994289, -.0335444, .004005751],
@@ -16,12 +17,17 @@ class Fiberized:
                       [.997268, -0.0702493, 0.0228234],
                       [-0.00005461419, .999687, -0.0250044]])
 
-    def __init__(self, rotation_list=None, verbose=True):
+    def __init__(self, num_rand_rots=10, rotation_list=None, verbose=True):
         """ Performs the reference frame alignment and calculates the T and F matrices,
         as well as the retardance angles to set to reverse them.
 
-        rotation_list, if specified, should be a scipy rotation object containing multiple rotations.
-        (see https://docs.scipy.org/doc/scipy/reference/generated/scipy.spatial.transform.Rotation.html)
+        For the rotations: by default, it will choose random angles to create random rotations.
+
+        num_rand_rots is the number of random rotations it will take measurements for. Should be at least 8.
+
+        Set rotation_list to a scipy rotation object containing multiple rotations.
+        Don't set this unless you want particular rotations for the measurements.
+        This will be slower than using random rotations.
 
         verbose, if true, will print each message sent and received by the polarization analyzer"""
 
@@ -30,8 +36,9 @@ class Fiberized:
             self.counts, angles = measure_HD(r.as_euler(rotation_list, "xyx", degrees=True), verbose=verbose)
             num_rots = len(rotation_list)
         else:
-            self.counts, angles = measure_HD_fast(num_rots=16, verbose=verbose)
-            num_rots = 16
+            num_rots = num_rand_rots
+            self.counts, angles = measure_HD_fast(num_rots=num_rots, verbose=verbose)
+
 
         # Update the rotation list based on the angles given back by the polarization analyzer
         self.rotations = r.identity(num_rots)
@@ -41,7 +48,7 @@ class Fiberized:
         # The least squares solves for x [theta1, theta2, theta3, theta, phi, N_H, N_D], where
         # theta1, theta2, theta3 [0, 360] are the angles around the rotation axes (degrees),
         # theta [0, 2pi] and phi [0, pi] are the spherical angles for the first row of the F matrix (radians),
-        # and N_H and N_D are the count rates for the H and D states (mW)
+        # and N_H and N_D are the max power for the H and D states from the synthesizer (mW)
         leastsquares_start = time.time()
         self.least_squares_result = least_squares_fitting(self.counts, self.rotations, axes=Fiberized.axes)
         x = self.least_squares_result.x
@@ -59,7 +66,7 @@ class Fiberized:
         self.ret_angles = calc_ret_angles_from_matrix(self.T, self.F, Fiberized.axes)
         self.other_ret_angles = calc_ret_angles_from_matrix(self.other_T, self.other_F, Fiberized.axes)
 
-        # Assuming that F does not change and the correct ret angles are close to 380 160
+        # Assuming that F does not change and the correct ret angles are close to [380 160 0]
         if (self.ret_angles[3] - 280)**2 + (self.ret_angles[4] - 160)**2 > (self.other_ret_angles[3] - 280)**2 + (self.other_ret_angles[4] - 160)**2:
             # The correct one is the second one and we switch
             tempT = self.other_T
@@ -108,10 +115,12 @@ def residuals(var, count_data, rotation_list, axes=None):
     rotation object containing the rotations, and an optional array of non-ideal axes of rotation (nx3 array).
 
     var is an array representing [theta1, theta2, theta3, theta, phi, N_H, N_D], where
-    theta1, theta2, theta3 [0, 360] are the euler angles (xyx, or around the nonideal axes if provided) in degrees, and
-    theta [0, 2pi] and phi [0, pi] are the spherical angles for the first row of F"""
+    theta1, theta2, theta3 [0, 360] are the euler angles (xyx, or around the nonideal axes if provided) in degrees,
+    theta [0, 2pi] and phi [0, pi] are the spherical angles for the first row of F,
+    N_H and N_D are the max power for the H and D states from the synthesizer (mW)"""
     num_rotations = len(rotation_list)
     res = np.empty(2 * num_rotations)
+
     for index in range(num_rotations):
         if axes is None:
             # Assume ideal rotation axes and use the angles as euler angles
@@ -127,6 +136,7 @@ def residuals(var, count_data, rotation_list, axes=None):
         calculated_C_D = 0.5 * var[6] * \
             (1 + F_row1 * r.as_matrix(rotation_list)[index] * calc_T * np.asmatrix(np.asarray([[0], [1], [0]])))[0, 0]
 
+        # Map C_H to the even indices, and C_D to the odd indices
         res[2 * index] = calculated_C_H - count_data[2 * index]
         res[2 * index + 1] = calculated_C_D - count_data[2 * index + 1]
     return res
@@ -220,11 +230,11 @@ def calc_ret_angles_for_F(F, axes):
 
 
 if __name__ == "__main__":
-    A = Fiberized(verbose=False)
+    A = Fiberized(num_rand_rots=10, verbose=False)
     # A = Fiberized(rotation_list=r.random(16), verbose=False)
     A.print_results()
     # choose angle set that is closest to 280 160 for F
-    path = 'plots/jul15_10r_.png'
+    path = 'plots/jul17_10r_4.png'
     A.plot_fringe(filepath=path, verbose=False, num_points=10)
-    # plot(title='No compensation\n[0, 0, 0, 0, 0, 0]', filepath='plots/jul15_nocompensation.png', verbose=True, num_points=15)
+    plot(title='No compensation\n[0, 0, 0, 0, 0, 0]', filepath='plots/jul17_nocompensation4.png', verbose=True, num_points=15)
 
