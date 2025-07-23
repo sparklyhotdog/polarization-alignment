@@ -117,6 +117,7 @@ def measure_HD_fast(num_rots=16, verbose=False, datapath=None, rotpath=None):
 
     return counts, actual_angles
 
+
 def measure_for_plot(ret_angles, num_points=10, verbose=False):
     """Returns measurements (mW) (4 x num_points array) from spanning the fourth waveplate rotation angle,
     given a list of retardance angles (in degrees) to set the wave plates (should be an array of length 6). """
