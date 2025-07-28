@@ -4,7 +4,7 @@ from scipy.optimize import least_squares, direct, minimize
 import random, time
 from measurements import measure_HD, measure_HD_fast
 from nonideal import rotation_nonideal_axes, calculate_euler_angles
-from plot_fringe import plot, plot2
+from plot_fringe import plot, plot2, plot_scatter
 
 
 class Fiberized:
@@ -103,6 +103,12 @@ class Fiberized:
         """Plots the fringes with compensation (from the calculated T and F)"""
         title = "With compensation\n" + str(np.round(self.ret_angles, 2))
         plot(ret_angles=self.ret_angles, title=title, filepath=filepath, verbose=verbose, num_points=num_points)
+
+    def plot_scatter(self, filepath=None, verbose=False, num_points=10):
+        """Plots the fringes with compensation as a scatter plot (from the calculated T and F)
+        with the expected sinusoids as dashed lines"""
+        title = "With compensation"
+        plot_scatter((self.N_H + self.N_D)/2, ret_angles=self.ret_angles, title=title, filepath=filepath, verbose=verbose, num_points=num_points)
 
     def plot_fringe_other(self, filepath=None, verbose=False, num_points=10):
         """Plots the fringes with compensation (from the other T and F)"""
@@ -234,7 +240,8 @@ if __name__ == "__main__":
     # A = Fiberized(rotation_list=r.random(16), verbose=False)
     A.print_results()
     # choose angle set that is closest to 280 160 for F
-    path = 'plots/jul17_10r_4.png'
-    A.plot_fringe(filepath=path, verbose=False, num_points=10)
-    plot(title='No compensation\n[0, 0, 0, 0, 0, 0]', filepath='plots/jul17_nocompensation4.png', verbose=True, num_points=15)
+    path = 'plots/jul28_3.png'
+    # A.plot_fringe(filepath=path, verbose=False, num_points=10)
+    A.plot_scatter(filepath=path, verbose=False, num_points=10)
+    plot_scatter((A.N_H + A.N_D)/2, title='No compensation', filepath='plots/jul28_nocompensation3.png', verbose=True, num_points=10)
 

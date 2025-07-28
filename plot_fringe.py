@@ -5,7 +5,7 @@ from scipy.spatial.transform import Rotation as r
 
 
 def plot(ret_angles=None, num_points=10, title=None, filepath=None, verbose=False):
-    """Plots the measured power (mW) while spanning the 4th wave plate rotation angle in the polarization analyzer for
+    """Plots the measured power (mW) while scanning the 4th wave plate rotation angle in the polarization analyzer for
     each of the H, V, D, A states.
 
     ret_angles is an array of 6 retardances (degrees) for the waveplates. """
@@ -27,7 +27,7 @@ def plot(ret_angles=None, num_points=10, title=None, filepath=None, verbose=Fals
     plt.ylabel('Power (mW)', fontsize='x-large')
     plt.title(title, fontsize='xx-large')
     legend = plt.legend()
-    ax.grid()
+    # ax.grid()
     if filepath is not None:
         plt.savefig(filepath)
 
@@ -76,6 +76,52 @@ def plot2(ret_angles=None, num_points=10, title=None, filepath=None, verbose=Fal
     plt.show()
 
 
+def plot_scatter(N, ret_angles=None, num_points=10, title=None, filepath=None, verbose=False):
+    """Plots the measured power (mW) while scanning the 4th wave plate rotation angle in the polarization analyzer for
+    each of the H, V, D, A states.
+
+    ret_angles is an array of 6 retardances (degrees) for the waveplates. """
+
+    if ret_angles is None:
+        ret_angles = np.zeros(6)
+
+    bases = ['H', 'V', 'D', 'A', 'R', 'L']
+    fig, ax = plt.subplots()
+
+    # Plot expected curves
+    x_expected = np.linspace(0, 360, 100)
+    theta = x_expected * np.pi / 180
+
+    readings_expected = [
+        0.5 * N * (1 + np.cos(theta)),
+        0.5 * N * (1 - np.cos(theta)),
+        0.5 * N * np.ones(100),
+        0.5 * N * np.ones(100),
+        0.5 * N * (1 + np.sin(theta)),
+        0.5 * N * (1 - np.sin(theta)),
+    ]
+
+    for i in range(6):
+        ax.plot(x_expected, readings_expected[i], linestyle='--')
+
+    # Plot measured values
+    x = np.linspace(0, 360, num_points)
+
+    readings = measure_for_plot(ret_angles, verbose=verbose, num_points=num_points)
+
+    for i in range(6):
+        ax.scatter(x, readings[i], label=bases[i])
+
+    plt.xlabel('Theta Offset for Waveplate 4 (deg)', fontsize='x-large')
+    plt.ylabel('Power (mW)', fontsize='x-large')
+    plt.title(title, fontsize='xx-large')
+    legend = plt.legend(loc='upper right')
+    # ax.grid()
+    if filepath is not None:
+        plt.savefig(filepath)
+
+    plt.show()
+
 def plot_expected(filepath=None):
     """"""
 
@@ -99,10 +145,10 @@ def plot_expected(filepath=None):
         ax.plot(x, readings[i], label=bases[i])
 
     ax.set_ylabel(ylabel='Fraction of max power', fontsize='x-large')
-    ax.set_title(label='Expected', fontsize='xx-large')
+    ax.set_title(label='Expected Fringes', fontsize='xx-large')
     ax.set_xlabel(xlabel='Theta for Waveplate 4 (deg)', fontsize='x-large')
     legend = plt.legend()
-    ax.grid()
+    # ax.grid()
     if filepath is not None:
         plt.savefig(filepath)
 
@@ -114,5 +160,6 @@ if __name__ == "__main__":
     #
     # print("Offsets for the waveplates: ", P)
     # plot(P, title=str(P), filepath='plots/jun30_nocompensation.png', verbose=True)
-    plot_expected(filepath='plots/expected.png')
+    # plot_expected(filepath='plots/expected.png')
+    plot_scatter(.84, verbose=True)
 
