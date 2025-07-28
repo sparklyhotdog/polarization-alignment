@@ -3,7 +3,7 @@ from scipy.spatial.transform import Rotation as r
 from scipy.optimize import least_squares, direct, minimize
 import random, time
 from measurements import measure_HD, measure_HD_fast
-from nonideal import rotation_nonideal_axes, calculate_euler_angles
+from nonideal import rotation_nonideal_axes, calculate_euler_angles, calc_ret_angles_for_F_trig
 from plot_fringe import plot, plot2, plot_scatter
 
 
@@ -63,8 +63,13 @@ class Fiberized:
         self.other_T[:, 0:2] = -self.T[:, 0:2]
         self.other_F = -self.F
 
-        self.ret_angles = calc_ret_angles_from_matrix(self.T, self.F, Fiberized.axes)
-        self.other_ret_angles = calc_ret_angles_from_matrix(self.other_T, self.other_F, Fiberized.axes)
+        self.ret_angles = np.empty(6)
+        self.ret_angles[0:3] = calculate_euler_angles(np.linalg.inv(self.T), 'hdh', self.axes[0:3], degrees=True)
+        self.ret_angles[3:6] = calculate_euler_angles(np.linalg.inv(extend_F_from_first_row(self.F)), 'dhd', self.axes[3:6], degrees=True)
+
+        self.other_ret_angles = np.empty(6)
+        self.other_ret_angles[0:3] = calculate_euler_angles(np.linalg.inv(self.other_T), 'hdh', self.axes[0:3], degrees=True)
+        self.other_ret_angles[3:6] = calculate_euler_angles(np.linalg.inv(extend_F_from_first_row(self.other_F)), 'dhd', self.axes[3:6], degrees=True)
 
         # Assuming that F does not change and the correct ret angles are close to [380 160 0]
         if (self.ret_angles[3] - 280)**2 + (self.ret_angles[4] - 160)**2 > (self.other_ret_angles[3] - 280)**2 + (self.other_ret_angles[4] - 160)**2:
@@ -172,67 +177,15 @@ def least_squares_fitting(count_data, rotation_list, axes=None, verbose=False):
     return fitting
 
 
-def calc_ret_angles_from_matrix(T, F, axes):
-    """Returns the retardance angles (degrees) for the 6 variable retarders to undo T and F,
-    given the 3x3 rotation matrix T, the first row of the matrix F, and the axes of rotation"""
-    ret_angles = np.zeros(6)
-    # We want the first 3 variable retarders to emulate T inverse.
-    # Since T is a rotation matrix, it is orthogonal, and its inverse is equal to its transpose.
-    ret_angles[0:3] = calculate_euler_angles(np.linalg.inv(T), axes[0:3], degrees=True, error_threshold=1e-10)
+def extend_F_from_first_row(F_row1):
+    """F_row1 should be an array length 3. Returns a rotation matrix that has F_row1 as its first row."""
+    # We choose the second row such that the x component is 0
+    F_row2 = np.array([0, F_row1[2], -F_row1[1]])
+    F_row2 = F_row2 / np.linalg.norm(F_row2)
+    # The third row must be orthogonal to both the first and second, so we set it to be the cross product.
+    F_row3 = np.cross(F_row1, F_row2)
 
-    # The 4th and 5th variable retarders undo F
-    ret_angles[3:5] = calc_ret_angles_for_F(F, axes)
-
-    return ret_angles
-
-
-def calc_ret_angles_for_F(F, axes):
-    """Returns the angles (degrees) to set the last 3 variable retarders in order to reverse the F transformation,
-    given the first row of F (an array length 3), and the rotation axes (a 6x3 array, column vectors are fine).
-
-    The output is [theta3, theta4], where theta3 is the angle to set the fourth variable retarder,
-    theta4 is the angle to set the fifth variable retarder (indexing starting at 0),
-    and the last variable retarder is set to 0."""
-    A = np.reshape(axes[3], 3)  # axis 3
-    B = np.reshape(axes[4], 3)  # axis 4
-    d = np.cross(A, B)
-    det = A[0] * B[1] - A[1] * B[0]
-    dot = np.dot(B, F)
-    x = (A[0] * B[1] - A[1] * dot) / det
-    y = (-A[0] * B[0] + A[0] * dot) / det
-
-    a = np.sum(np.square(d))
-    b = 2 * x * d[0] + 2 * y * d[1]
-    c = x ** 2 + y ** 2 - 1
-
-    t = [(-b + np.sqrt(b ** 2 - 4 * a * c)) / (2 * a), (-b - np.sqrt(b ** 2 - 4 * a * c)) / (2 * a)]
-
-    pt = np.array([x, y, 0])
-
-    # We have two possible points for f prime. We will choose the one with the positive z component.
-    # (This part assumes that we have D-H-D aligned retarders for the last 3)
-    f_prime = pt + t[1] * d
-    if f_prime[2] < 0:
-        f_prime = pt + t[0] * d
-
-    point_B = dot * B / np.sum(np.square(B))
-
-    point_A = A[0] * A / np.sum(np.square(A))
-
-    theta4 = -np.arccos(np.dot(F - point_B, f_prime - point_B) / (
-                np.linalg.norm(F - point_B) * np.linalg.norm(f_prime - point_B))) * 180 / np.pi % 360
-
-    # Since we pick f_prime to have a pos z component, theta3 will always be in [180, 360]
-    theta3 = -np.arccos(np.dot(f_prime - point_A, np.array([1, 0, 0]) - point_A) / (
-                np.linalg.norm(f_prime - point_A) * np.linalg.norm(np.array([1, 0, 0]) - point_A))) * 180 / np.pi % 360
-
-    # Get the complement of theta4 if necessary
-    y_comp = (F - point_B) - (np.dot(f_prime - point_B, F) / np.dot(f_prime - point_B, f_prime - point_B)) * (
-                f_prime - point_B)
-    if y_comp[1] < 0:
-        theta4 = 360 - theta4
-
-    return [theta3, theta4]
+    return np.array([F_row1, F_row2, F_row3])
 
 
 if __name__ == "__main__":
@@ -240,8 +193,8 @@ if __name__ == "__main__":
     # A = Fiberized(rotation_list=r.random(16), verbose=False)
     A.print_results()
     # choose angle set that is closest to 280 160 for F
-    path = 'plots/jul28_3.png'
+    path = 'plots/jul28__4.png'
     # A.plot_fringe(filepath=path, verbose=False, num_points=10)
     A.plot_scatter(filepath=path, verbose=False, num_points=10)
-    plot_scatter((A.N_H + A.N_D)/2, title='No compensation', filepath='plots/jul28_nocompensation3.png', verbose=True, num_points=10)
+    plot_scatter((A.N_H + A.N_D)/2, title='No compensation', filepath='plots/jul28_nocompensation_4.png', verbose=True, num_points=10)
 

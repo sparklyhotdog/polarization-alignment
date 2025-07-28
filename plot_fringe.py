@@ -122,6 +122,7 @@ def plot_scatter(N, ret_angles=None, num_points=10, title=None, filepath=None, v
 
     plt.show()
 
+
 def plot_expected(filepath=None):
     """"""
 

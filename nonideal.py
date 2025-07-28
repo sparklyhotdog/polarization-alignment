@@ -48,9 +48,18 @@ def rotation_nonideal_axes(axes: npt.NDArray, rot_angles: npt.ArrayLike, degrees
     return r.as_matrix(rotation)    # TODO: change return type to scipy rotation?
 
 
-def calculate_euler_angles(M_goal, axes, error_threshold=.000001, verbose=False, degrees=False):
-    """Returns the retardance angles (in radians) needed to achieve rotation matrix M_goal
-    given non-ideal axes of rotation (should be 3 axes to represent HDH). Based on Nucrypt pa1000_math_docver2.docx"""
+def calculate_euler_angles(M_goal, seq, axes, error_threshold=1e-10, verbose=False, degrees=False):
+    """Returns the retardance angles needed to achieve rotation matrix M_goal
+    given non-ideal axes of rotation. Based on Nucrypt pa1000_math_docver2.docx
+
+    M_goal is the goal rotation matrix. seq should be hdh/xyx or dhd/yxy. axes should be a 3x3 array of the rotation
+    axes. Setting verbose to true will print the angles and error each iteration."""
+
+    if seq == 'hdh':
+        seq = 'xyx'
+    if seq == 'dhd':
+        seq = 'yxy'
+
     # trim M_goal if needed
     if M_goal.shape == (4, 4):
         M_goal = np.delete(M_goal, 0, 0)
@@ -59,7 +68,7 @@ def calculate_euler_angles(M_goal, axes, error_threshold=.000001, verbose=False,
 
     # initial guess with the ideal case
     # use "xyx" for HDH; "yxy" for DHD
-    P = r.as_euler(R_goal, "xyx")
+    P = r.as_euler(R_goal, seq)
     error = 1e20
 
     for i in range(100):
@@ -114,6 +123,57 @@ def calculate_euler_angles(M_goal, axes, error_threshold=.000001, verbose=False,
     return P
 
 
+def calc_ret_angles_for_F_trig(F, axes):
+    """Returns the angles (degrees) to set the last 3 variable retarders in order to reverse the F transformation,
+    given the first row of F (an array length 3), and the rotation axes (a 6x3 array, column vectors are fine).
+
+    The output is [theta3, theta4], where theta3 is the angle to set the fourth variable retarder,
+    theta4 is the angle to set the fifth variable retarder (indexing starting at 0),
+    and the last variable retarder is set to 0.
+
+    Assumes that the fourth and fifth variable retarders are D and H respectively."""
+
+    A = np.reshape(axes[3], 3)  # axis 3
+    B = np.reshape(axes[4], 3)  # axis 4
+    d = np.cross(A, B)
+    det = A[0] * B[1] - A[1] * B[0]
+    dot = np.dot(B, F)
+    x = (A[0] * B[1] - A[1] * dot) / det
+    y = (-A[0] * B[0] + A[0] * dot) / det
+
+    a = np.sum(np.square(d))
+    b = 2 * x * d[0] + 2 * y * d[1]
+    c = x ** 2 + y ** 2 - 1
+
+    t = [(-b + np.sqrt(b ** 2 - 4 * a * c)) / (2 * a), (-b - np.sqrt(b ** 2 - 4 * a * c)) / (2 * a)]
+
+    pt = np.array([x, y, 0])
+
+    # We have two possible points for f prime. We will choose the one with the positive z component.
+    # (This part assumes that we have D-H-D aligned retarders for the last 3)
+    f_prime = pt + t[1] * d
+    if f_prime[2] < 0:
+        f_prime = pt + t[0] * d
+
+    point_B = dot * B / np.sum(np.square(B))
+
+    point_A = A[0] * A / np.sum(np.square(A))
+
+    theta4 = -np.arccos(np.dot(F - point_B, f_prime - point_B) / (
+            np.linalg.norm(F - point_B) * np.linalg.norm(f_prime - point_B))) * 180 / np.pi % 360
+
+    # Since we pick f_prime to have a pos z component, theta3 will always be in [180, 360]
+    theta3 = -np.arccos(np.dot(f_prime - point_A, np.array([1, 0, 0]) - point_A) / (
+            np.linalg.norm(f_prime - point_A) * np.linalg.norm(np.array([1, 0, 0]) - point_A))) * 180 / np.pi % 360
+
+    # Get the complement of theta4 if necessary
+    y_comp = (F - point_B) - (np.dot(f_prime - point_B, F) / np.dot(f_prime - point_B, f_prime - point_B)) * (
+            f_prime - point_B)
+    if y_comp[1] < 0:
+        theta4 = 360 - theta4
+
+    return [theta3, theta4]
+
 if __name__ == "__main__":
     T = r.as_matrix(r.random())
     nonideal_axes = np.asarray([[[.999633], [.0038151], [-.0268291]],
@@ -123,7 +183,7 @@ if __name__ == "__main__":
                                 [[.997268], [-0.0702493], [0.0228234]],
                                 [[-0.00005461419], [.999687], [-0.0250044]]])
 
-    angles = calculate_euler_angles(T, nonideal_axes[0:3], verbose=True)
+    angles = calculate_euler_angles(T, "xyx", nonideal_axes[0:3], verbose=True)
     print("Angles (rad): ", angles)
 
     print(T)
