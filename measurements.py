@@ -6,6 +6,7 @@ from scipy.spatial.transform import Rotation as r
 import yaml
 import time
 
+yamlpath = 'serverinfo.yaml'
 
 def measure_HD(rotations, verbose=False, datapath=None, rotpath=None):
     """Given a list of rotations in terms of its angles (nx3 matrix), returns the powermeter measurements (mW)
@@ -19,7 +20,7 @@ def measure_HD(rotations, verbose=False, datapath=None, rotpath=None):
     rotations = rotations % 360     # the polarization analyzer accepts angles in degrees with range [0, 420]
     rotations = np.round(rotations, 10)     # the PA gets upset if there are too many decimals
 
-    y_fn = open('serverinfo.yaml')
+    y_fn = open(yamlpath)
     dicty = yaml.load(y_fn, Loader=yaml.SafeLoader)
     y_fn.close()
 
@@ -69,7 +70,7 @@ def measure_HD(rotations, verbose=False, datapath=None, rotpath=None):
 def measure_HD_fast(num_rots=16, verbose=False, datapath=None, rotpath=None):
     """returns the powermeter measurements (mW) corresponding to the H and D states, and the angles set during the
     measurements. Instead of setting 3 angles for each rotation, sets only one random rotation"""
-    y_fn = open('serverinfo.yaml')
+    y_fn = open(yamlpath)
     dicty = yaml.load(y_fn, Loader=yaml.SafeLoader)
     y_fn.close()
 
@@ -122,7 +123,7 @@ def measure_for_plot(ret_angles, num_points=10, verbose=False):
     """Returns measurements (mW) (4 x num_points array) from spanning the fourth waveplate rotation angle,
     given a list of retardance angles (in degrees) to set the wave plates (should be an array of length 6). """
 
-    y_fn = open('serverinfo.yaml')
+    y_fn = open(yamlpath)
     dicty = yaml.load(y_fn, Loader=yaml.SafeLoader)
     y_fn.close()
 
