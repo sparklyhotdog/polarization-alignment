@@ -179,11 +179,17 @@ def least_squares_fitting(count_data, rotation_list, axes=None, verbose=False):
 
 def extend_F_from_first_row(F_row1):
     """F_row1 should be an array length 3. Returns a rotation matrix that has F_row1 as its first row."""
-    # We choose the second row such that the x component is 0
-    F_row2 = np.array([0, F_row1[2], -F_row1[1]])
-    F_row2 = F_row2 / np.linalg.norm(F_row2)
-    # The third row must be orthogonal to both the first and second, so we set it to be the cross product.
-    F_row3 = np.cross(F_row1, F_row2)
+    # If the second and third components of F_row1 are not both zero, we choose the second row such that the x component is 0
+    if not (F_row1[1] == 0 and F_row1[2] == 0):
+        F_row2 = np.array([0, F_row1[2], -F_row1[1]])
+        F_row2 = F_row2 / np.linalg.norm(F_row2)
+        # The third row must be orthogonal to both the first and second, so we set it to be the cross product.
+        F_row3 = np.cross(F_row1, F_row2)
+    else:
+        # F_row1 must be a unit vector and the second and third components are zero,
+        # so F_row1 is either [1, 0, 0] or [-1, 0, 0]
+        F_row2 = np.array([0, F_row1[0], 0])
+        F_row3 = np.array([0, 0, 1])
 
     return np.array([F_row1, F_row2, F_row3])
 
@@ -196,5 +202,5 @@ if __name__ == "__main__":
     path = 'plots/jul28__4.png'
     # A.plot_fringe(filepath=path, verbose=False, num_points=10)
     A.plot_scatter(filepath=path, verbose=False, num_points=10)
-    plot_scatter((A.N_H + A.N_D)/2, title='No compensation', filepath='plots/jul28_nocompensation_4.png', verbose=True, num_points=10)
+    # plot_scatter((A.N_H + A.N_D)/2, title='No compensation', filepath='plots/jul28_nocompensation_4.png', verbose=True, num_points=10)
 
